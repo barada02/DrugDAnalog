@@ -218,3 +218,76 @@ button:hover { border-color: var(--accent); }
 
 .error { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
 .warn { background: color-mix(in srgb, var(--wait) 12%, transparent); color: var(--wait); }
+
+/* --- constraints --- */
+
+.constraints {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #12151c;
+}
+
+.constraints h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.hint { color: var(--muted); font-size: 12px; margin: 12px 0 6px; }
+.hint--muted { font-style: italic; }
+.hint:first-of-type { margin-top: 0; }
+
+.row--tight { margin-top: 8px; gap: 6px; }
+.row--tight .numeric { flex: 0 0 74px; }
+
+select {
+  background: #0c0e12;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.chip:disabled { opacity: 0.35; cursor: default; }
+.chip:disabled:hover { border-color: var(--line); }
+
+.constraint-list { list-style: none; margin: 12px 0 0; padding: 0; }
+
+.constraint-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+
+.remove {
+  padding: 0 7px;
+  line-height: 1.4;
+  color: var(--muted);
+  background: none;
+  border: none;
+  font-size: 16px;
+}
+
+.remove:hover { color: var(--bad); }
+
+/* --- verdicts on cards --- */
+
+.card--rejected { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.card--rejected .depiction { opacity: 0.5; }
+
+.checks { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12px; }
+.checks li { padding: 2px 0; }
+.checks__ok { color: var(--ok); }
+.checks__bad { color: var(--bad); }
+.checks__detail { color: var(--muted); }
+
+.ledger__caption { color: var(--muted); font-size: 11px; margin: 6px 0 0; }

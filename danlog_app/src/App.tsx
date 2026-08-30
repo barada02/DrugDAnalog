@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ConstraintEditor } from './components/ConstraintEditor'
 import { getRDKit } from './chem/rdkit'
 import { PRESETS } from './chem/properties'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
@@ -7,6 +8,13 @@ import type { Candidate } from './store/workbench'
 import './App.css'
 
 const FIELD_LABEL = { mw: 'MW', logP: 'logP', tpsa: 'TPSA' } as const
+
+/**
+ * logP first: MW and TPSA are additive sums the model computes reliably, so
+ * they are context rather than evidence. logP is the column that actually
+ * tests whether the model is guessing.
+ */
+const LEDGER_ORDER = ['logP', 'tpsa', 'mw'] as const
 
 /** Why WebMCP is not usable here, or null if it is. Read once, at render. */
 function supportProblem(): string | null {
@@ -72,24 +80,48 @@ function Properties({ p }: { p: Candidate['properties'] }) {
 /** The point of the whole app: what the model claimed, beside what RDKit measured. */
 function Scorecard({ candidate }: { candidate: Candidate }) {
   if (!candidate.scorecard.length) return null
+  const rows = LEDGER_ORDER.map((field) => candidate.scorecard.find((r) => r.field === field)).filter(
+    (row) => row !== undefined,
+  )
   return (
-    <table className="ledger">
-      <thead>
-        <tr><th>claimed</th><th>measured</th><th>error</th></tr>
-      </thead>
-      <tbody>
-        {candidate.scorecard.map((row) => {
-          const wrong = Math.abs(row.error) > (row.field === 'logP' ? 0.5 : 5)
-          return (
-            <tr key={row.field} className={wrong ? 'ledger__row--wrong' : 'ledger__row--right'}>
-              <td>{FIELD_LABEL[row.field]} {row.predicted}</td>
-              <td>{row.actual}</td>
-              <td>{row.error > 0 ? '+' + row.error : row.error}</td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <>
+      <table className="ledger">
+        <thead>
+          <tr><th>claimed</th><th>measured</th><th>error</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const wrong = Math.abs(row.error) > (row.field === 'logP' ? 0.5 : 5)
+            return (
+              <tr key={row.field} className={wrong ? 'ledger__row--wrong' : 'ledger__row--right'}>
+                <td>{FIELD_LABEL[row.field]} {row.predicted}</td>
+                <td>{row.actual}</td>
+                <td>{row.error > 0 ? '+' + row.error : row.error}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="ledger__caption">
+        MW and TPSA are additive sums the model can work out. logP is the one it has to estimate.
+      </p>
+    </>
+  )
+}
+
+/** Which constraints the candidate broke, named specifically. */
+function VerdictPanel({ candidate }: { candidate: Candidate }) {
+  const { verdict } = candidate
+  if (!verdict.checks.length) return null
+  return (
+    <ul className="checks">
+      {verdict.checks.map((check) => (
+        <li key={check.constraintId} className={check.satisfied ? 'checks__ok' : 'checks__bad'}>
+          {check.satisfied ? '✓' : '✗'} {check.description}
+          {!check.satisfied && <span className="checks__detail"> — {check.detail}</span>}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -167,6 +199,7 @@ function Board() {
         placeholder="Design goal, e.g. more water-soluble, keep the amide intact"
         onChange={(e) => setGoal(e.target.value)}
       />
+      <ConstraintEditor />
       {candidates.length === 0 && (
         <p className="empty">
           No candidates yet. Ask your agent: <em>Propose three more soluble aspirin analogs, and
@@ -175,8 +208,17 @@ function Board() {
       )}
       <div className="cards">
         {candidates.map((candidate) => (
-          <article key={candidate.id} className="card">
+          <article
+            key={candidate.id}
+            className={candidate.verdict.accepted ? 'card' : 'card card--rejected'}
+          >
             <header>
+              {candidate.verdict.checks.length > 0 && (
+                <Badge
+                  label={candidate.verdict.accepted ? 'accepted' : 'rejected'}
+                  tone={candidate.verdict.accepted ? 'ok' : 'bad'}
+                />
+              )}
               <Badge label={candidate.source} tone={candidate.source === 'agent' ? 'wait' : 'ok'} />
               <Badge
                 label={candidate.lipinski.passes ? 'Lipinski pass' : 'Lipinski fail'}
@@ -189,6 +231,7 @@ function Board() {
             />
             <code className="smiles">{candidate.properties.canonicalSmiles}</code>
             {candidate.rationale && <p className="rationale">{candidate.rationale}</p>}
+            <VerdictPanel candidate={candidate} />
             <Properties p={candidate.properties} />
             <Scorecard candidate={candidate} />
             {!candidate.lipinski.passes && (
