@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { evaluate } from '../chem/constraints'
+import type { Constraint, Verdict } from '../chem/constraints'
 import { computeProperties, lipinski, renderSvg } from '../chem/properties'
 import type { LipinskiResult, Properties } from '../chem/properties'
 
@@ -18,6 +20,8 @@ export type Candidate = {
   parentSmiles: string | null
   prediction: Prediction | null
   scorecard: ScoreRow[]
+  /** Result of checking the human's constraints. Empty constraint list accepts. */
+  verdict: Verdict
   createdAt: number
 }
 
@@ -32,10 +36,18 @@ export type LogEntry = {
 
 export type Molecule = { properties: Properties; lipinski: LipinskiResult; svg: string }
 
+/**
+ * Constraint minus its id. Distributed over the union by hand, because a plain
+ * Omit on a discriminated union collapses it to the shared keys.
+ */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+export type DraftConstraint = DistributiveOmit<Constraint, 'id'>
+
 type WorkbenchState = {
   rdkitStatus: 'loading' | 'ready' | 'error'
   rdkitError: string | null
   goal: string
+  constraints: Constraint[]
   focus: Molecule | null
   candidates: Candidate[]
   log: LogEntry[]
@@ -44,6 +56,8 @@ type WorkbenchState = {
 type WorkbenchActions = {
   setRdkitStatus: (status: WorkbenchState['rdkitStatus'], error?: string) => void
   setGoal: (goal: string) => void
+  addConstraint: (constraint: DraftConstraint) => Constraint
+  removeConstraint: (id: string) => void
   setFocus: (smiles: string) => Promise<Molecule>
   addCandidate: (input: {
     smiles: string
@@ -85,6 +99,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   rdkitStatus: 'loading',
   rdkitError: null,
   goal: '',
+  constraints: [],
   focus: null,
   candidates: [],
   log: [],
@@ -94,6 +109,15 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   setGoal: (goal) => set({ goal }),
 
+  addConstraint: (draft) => {
+    const constraint = { ...draft, id: id() } as Constraint
+    set((state) => ({ constraints: [...state.constraints, constraint] }))
+    return constraint
+  },
+
+  removeConstraint: (constraintId) =>
+    set((state) => ({ constraints: state.constraints.filter((c) => c.id !== constraintId) })),
+
   setFocus: async (smiles) => {
     const molecule = await buildMolecule(smiles)
     set({ focus: molecule })
@@ -102,6 +126,9 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   addCandidate: async ({ smiles, rationale = '', prediction = null, source }) => {
     const { properties, lipinski: rules, svg } = await buildMolecule(smiles)
+    // Constraints are read at proposal time, so a candidate records the verdict
+    // against the rules that were in force when it was proposed.
+    const verdict = await evaluate(smiles, properties, get().constraints)
     const candidate: Candidate = {
       id: id(),
       smiles,
@@ -113,6 +140,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       parentSmiles: get().focus?.properties.canonicalSmiles ?? null,
       prediction,
       scorecard: score(prediction, properties),
+      verdict,
       createdAt: Date.now(),
     }
     set((state) => ({ candidates: [candidate, ...state.candidates] }))
