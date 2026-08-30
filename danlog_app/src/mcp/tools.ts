@@ -1,4 +1,6 @@
+import { describeConstraint } from '../chem/constraints'
 import { computeProperties, lipinski } from '../chem/properties'
+import { countMatches, matchSmarts } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
 import type { Prediction } from '../store/workbench'
 import type { ToolDescriptor, ToolResult } from './webmcp'
@@ -25,19 +27,77 @@ const TOOLS: ToolDescriptor[] = [
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     execute: () => {
-      const { goal, focus, candidates } = store()
+      const { goal, constraints, focus, candidates } = store()
       return ok({
         goal: goal || null,
+        constraints: constraints.map(describeConstraint),
         focus: focus && { ...focus.properties, lipinski: focus.lipinski },
         candidates: candidates.map((c) => ({
           id: c.id,
           smiles: c.properties.canonicalSmiles,
           source: c.source,
+          status: c.verdict.accepted ? 'accepted' : 'rejected',
+          rejectedFor: c.verdict.failures,
           rationale: c.rationale,
           properties: c.properties,
           lipinski: c.lipinski,
           scorecard: c.scorecard,
         })),
+      })
+    },
+  },
+  {
+    name: 'get_design_goal',
+    description:
+      'Read what the human is actually trying to make: the stated goal in their own words, ' +
+      'plus the hard constraints every candidate is checked against. Constraints are not ' +
+      'advisory. A candidate that breaks one is rejected no matter how good its properties ' +
+      'are, so read this before designing anything.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
+    execute: () => {
+      const { goal, constraints } = store()
+      return ok({
+        goal: goal || null,
+        constraints: constraints.map((c) => ({ id: c.id, requirement: describeConstraint(c) })),
+        note: constraints.length
+          ? 'Every candidate is checked against all of these.'
+          : 'No hard constraints set. Only the stated goal applies.',
+      })
+    },
+  },
+  {
+    name: 'check_substructure',
+    description:
+      'Test whether a molecule contains a substructure, using real RDKit graph matching. ' +
+      'Use it to check your own work before proposing: whether an edit actually preserved ' +
+      'the scaffold you claim it preserved, or whether a group you meant to replace is ' +
+      'really gone. Reading a SMILES string is not the same as matching it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        smiles: SMILES_PARAM,
+        smarts: {
+          type: 'string',
+          description:
+            'SMARTS pattern to look for, e.g. [CX3](=O)[NX3] for an amide. Be specific: a ' +
+            'loose pattern matches things you did not mean, so CC(=O)O matches any acyl ' +
+            'ester rather than only an acetyl one.',
+        },
+      },
+      required: ['smiles', 'smarts'],
+    },
+    annotations: { readOnlyHint: true },
+    execute: async ({ smiles, smarts }: { smiles: string; smarts: string }) => {
+      const atoms = await matchSmarts(smiles, smarts)
+      const count = atoms ? await countMatches(smiles, smarts) : 0
+      store().note({ actor: 'agent', tool: 'check_substructure', detail: smarts, ok: atoms !== null })
+      return ok({
+        smiles,
+        smarts,
+        present: atoms !== null,
+        matchCount: count,
+        matchedAtoms: atoms,
       })
     },
   },
@@ -64,11 +124,12 @@ const TOOLS: ToolDescriptor[] = [
   {
     name: 'propose_candidate',
     description:
-      'Add a candidate analog to the design board and get its real computed properties back. ' +
-      'State your predicted mw, logP and tpsa first: the tool scores your prediction against ' +
-      'what RDKit actually measures and returns the error on each. Use that feedback to ' +
-      'correct yourself before proposing the next analog. The candidate lands as a pending ' +
-      'card — the human decides what is kept.',
+      'Add a candidate analog to the design board and get its real computed properties back, ' +
+      'along with a verdict on the human hard constraints. A candidate that breaks a ' +
+      'constraint is REJECTED and the tool names which one and why: fix that specific ' +
+      'violation and propose again. State your predicted mw, logP and tpsa first, and the ' +
+      'tool also scores those against what RDKit measures. Call get_design_goal before your ' +
+      'first proposal so you know the rules you are being judged against.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -108,18 +169,39 @@ const TOOLS: ToolDescriptor[] = [
         actor: 'agent',
         tool: 'propose_candidate',
         detail: candidate.properties.canonicalSmiles,
-        ok: candidate.lipinski.passes,
+        ok: candidate.verdict.accepted,
       })
+
+      const notes: string[] = []
+      if (!candidate.verdict.accepted) {
+        notes.push(
+          'REJECTED. Fix the constraint violations listed in rejectedFor and propose a ' +
+            'corrected analog. Use check_substructure to confirm the fix before proposing.',
+        )
+      }
+      if (!candidate.lipinski.passes) {
+        notes.push('Lipinski violations: ' + candidate.lipinski.violations.join('; '))
+      }
+      notes.push(
+        candidate.scorecard.length
+          ? 'Compare predicted against actual in the scorecard and adjust your next estimate.'
+          : 'You supplied no prediction. Next time include predicted_mw / predicted_logp / ' +
+            'predicted_tpsa so your reasoning can be checked against the measurement.',
+      )
 
       return ok({
         id: candidate.id,
+        status: candidate.verdict.accepted ? 'accepted' : 'rejected',
+        rejectedFor: candidate.verdict.failures,
+        constraintChecks: candidate.verdict.checks.map((c) => ({
+          requirement: c.description,
+          satisfied: c.satisfied,
+          detail: c.detail,
+        })),
         measured: candidate.properties,
         lipinski: candidate.lipinski,
         scorecard: candidate.scorecard,
-        note: candidate.scorecard.length
-          ? 'Compare `predicted` against `actual` above and adjust your next proposal.'
-          : 'You supplied no prediction. Next time include predicted_mw / predicted_logp / ' +
-            'predicted_tpsa so your reasoning can be checked against the measurement.',
+        note: notes.join(' '),
       })
     },
   },
