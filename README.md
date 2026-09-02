@@ -84,6 +84,21 @@ npm run dev
 
 Other scripts: `npm run build`, `npm run lint`, `npm run preview`.
 
+### Deployment
+
+Hosted on Vercel. Two settings matter:
+
+- **Root Directory must be `danlog_app`**, since that is where `package.json` lives.
+- Nothing else to configure. `dist/` and `public/rdkit/` are both gitignored, so the
+  6.9 MB RDKit build never enters the repo -- `sync-rdkit.mjs` regenerates it from
+  `node_modules` on install and again before every build. A clean checkout produces
+  a complete `dist/`, verified.
+
+`vercel.json` sets a 30 day cache on `/rdkit/*` so returning visitors do not
+re-download the WASM, and pins its content type to `application/wasm`. The cache is
+deliberately not `immutable`: the path is stable rather than content-hashed, so an
+RDKit version bump needs to reach people who already have the old one.
+
 ### Connecting an agent
 
 WebMCP is still behind a flag in most builds.
