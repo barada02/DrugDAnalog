@@ -255,11 +255,27 @@ function FocusPanel() {
   )
 }
 
+const STATUS_TONE = { pending: 'wait', accepted: 'ok', rejected: 'bad' } as const
+
 function Board() {
   const candidates = useWorkbench((s) => s.candidates)
   const goal = useWorkbench((s) => s.goal)
   const setGoal = useWorkbench((s) => s.setGoal)
   const scaffold = useWorkbench((s) => s.scaffold)
+  const decide = useWorkbench((s) => s.decide)
+  const note = useWorkbench((s) => s.note)
+
+  const judge = (candidate: Candidate, status: 'accepted' | 'rejected') => {
+    decide(candidate.id, status)
+    note({
+      actor: 'human',
+      tool: status === 'accepted' ? 'accept_candidate' : 'reject_candidate',
+      detail: candidate.properties.canonicalSmiles,
+      ok: status === 'accepted',
+    })
+  }
+
+  const pendingCount = candidates.filter((c) => c.status === 'pending').length
 
   return (
     <section className="panel">
@@ -270,6 +286,12 @@ function Board() {
         placeholder="Design goal, e.g. more water-soluble, keep the amide intact"
         onChange={(e) => setGoal(e.target.value)}
       />
+      {pendingCount > 0 && (
+        <p className="hint">
+          {pendingCount} proposal{pendingCount > 1 ? 's' : ''} waiting on you. Nothing
+          becomes the focus molecule until you accept it.
+        </p>
+      )}
       {candidates.length === 0 && (
         <p className="empty">
           No candidates yet. Ask your agent: <em>Propose three more soluble aspirin analogs, and
@@ -280,10 +302,15 @@ function Board() {
         {candidates.map((candidate) => (
           <article
             key={candidate.id}
-            className={'card' + (candidate.scaffoldOk === false ? ' card--broke' : '')}
+            className={
+              'card' +
+              (candidate.scaffoldOk === false ? ' card--broke' : '') +
+              (candidate.status === 'rejected' ? ' card--rejected' : '')
+            }
           >
             <header>
               <Badge label={candidate.source} tone={candidate.source === 'agent' ? 'wait' : 'ok'} />
+              <Badge label={candidate.status} tone={STATUS_TONE[candidate.status]} />
               <Badge
                 label={candidate.lipinski.passes ? 'Lipinski pass' : 'Lipinski fail'}
                 tone={candidate.lipinski.passes ? 'ok' : 'bad'}
@@ -312,6 +339,16 @@ function Board() {
             <Scorecard candidate={candidate} />
             {!candidate.lipinski.passes && (
               <p className="violations">{candidate.lipinski.violations.join(' / ')}</p>
+            )}
+            {candidate.status === 'pending' && (
+              <div className="decide">
+                <button className="decide__yes" onClick={() => judge(candidate, 'accepted')}>
+                  Accept
+                </button>
+                <button className="decide__no" onClick={() => judge(candidate, 'rejected')}>
+                  Reject
+                </button>
+              </div>
             )}
           </article>
         ))}
