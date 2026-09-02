@@ -451,10 +451,40 @@ new dependency:
   over a SMILES with two unspecified centres it hasn't described one compound, it's
   described four, and it almost never notices.
 
-New files: `src/chem/rules.ts`, `src/chem/qed.ts`, `src/chem/solubility.ts`.
+## Phase 2 status
 
-**Done when:** a card shows QED and predicted solubility with error bars, every value
-is visibly tiered, and asking the agent for the potency of anything gets a refusal from
+| Piece | State |
+|---|---|
+| Confidence tiers | **Done.** `MEASURES` drives the grid and the tool responses from one list. |
+| ESOL solubility | **Done.** Validated against experimental values, worst error 0.94 of the 1.0 log unit claimed. |
+| Veber, Egan, Pfizer 3/75 | **Done**, alongside Lipinski, each naming the broken clause. |
+| Fsp3, aromatic rings | **Done.** |
+| Undefined stereocentre warning | **Done.** |
+| `get_computable_limits` | **Done.** Names what we refuse to guess. |
+| QED | **Deferred to Phase 4.** See below. |
+
+Files added: `src/chem/rules.ts`, `src/chem/solubility.ts`, `src/chem/measures.ts`.
+Tools now: `get_workbench_state`, `get_molecule_properties`, `check_substructure`,
+`propose_candidate`, `get_computable_limits`, `set_focus_molecule`.
+
+### Why QED moved to Phase 4
+
+QED needs eight inputs and we have seven. The eighth is ALERTS — a count of matches
+against a published list of 116 unwanted-substructure SMARTS patterns. Without it the
+number would not be QED, it would be QED-shaped.
+
+Reproducing 116 SMARTS patterns from memory is exactly the kind of work that produces
+subtly wrong output we cannot detect offline, and shipping a wrong QED would break
+rule 1. So it waits for Phase 4, where the structural alert catalog arrives as
+verified data anyway and QED becomes a short function on top of it.
+
+This is the honesty rule applied to ourselves, which is the only way it means
+anything.
+
+---
+
+**Done when:** a card shows predicted solubility with its error bar, every value is
+visibly tiered, and asking the agent for the potency of anything gets a refusal from
 the tool rather than a number.
 
 ---
