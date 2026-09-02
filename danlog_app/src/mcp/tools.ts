@@ -3,6 +3,8 @@ import { MEASURES, NOT_COMPUTABLE, TIER_ABOUT } from '../chem/measures'
 import { assess } from '../chem/rules'
 import { buildLedger, ledgerNote } from '../chem/ledger'
 import { band, diversity, tanimoto } from '../chem/similarity'
+import { profile, suggestionsFor } from '../chem/profile'
+import { describeConstraint } from '../chem/constraints'
 import { InvalidSmartsError, InvalidSmilesError } from '../chem/rdkit'
 import { matchPattern } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
@@ -205,6 +207,16 @@ const TOOLS: ToolDescriptor[] = [
           accepted: byStatus('accepted'),
           rejected: byStatus('rejected'),
         },
+        constraints: store().constraints.length
+          ? {
+              required: store().constraints.map(describeConstraint),
+              focusMeets: focus ? `${focus.constraints.satisfied}/${focus.constraints.total}` : null,
+              rule:
+                'These are the objectives the human stated. A proposal that satisfies more ' +
+                'of them is better, and one that satisfies all of them is what you are ' +
+                'aiming for. Optimise against every constraint at once, not one at a time.',
+            }
+          : null,
         predictionAccuracy: { ...buildLedger(candidates), advice: ledgerNote(buildLedger(candidates)) },
         boardDiversity: diversity(
           candidates.filter((c) => c.status !== 'rejected').map((c) => c.fp),
@@ -394,10 +406,27 @@ const TOOLS: ToolDescriptor[] = [
                     : 'A recognisable analog of the parent molecule.',
               }
 
+        const constraintBlock = candidate.constraints.total
+          ? {
+              met: `${candidate.constraints.satisfied}/${candidate.constraints.total}`,
+              allMet: candidate.constraints.allMet,
+              detail: candidate.constraints.checks.map((c) => c.message),
+            }
+          : null
+
         return ok({
           id: candidate.id,
           status: candidate.status,
           similarity: drift,
+          constraints: constraintBlock,
+          alerts: candidate.profile.alerts.length
+            ? {
+                hits: candidate.profile.alerts,
+                message:
+                  'This molecule carries structural alerts. Report them to the human ' +
+                  'rather than presenting the numbers alone.',
+              }
+            : null,
           measured: describe(candidate.properties),
           rules: candidate.rules,
           scaffold,
@@ -412,6 +441,89 @@ const TOOLS: ToolDescriptor[] = [
         })
       },
     ),
+  },
+
+  {
+    name: 'analyse_structure',
+    description:
+      'Name the functional groups in a molecule and flag structural alerts -- reactive or ' +
+      'assay-interfering groups that make a compound undevelopable however good its ' +
+      'numbers look. Call this before proposing anything with unusual chemistry. A ' +
+      'molecule can pass every property rule and still be unusable because it contains ' +
+      'an epoxide or a catechol.',
+    inputSchema: {
+      type: 'object',
+      properties: { smiles: SMILES_PARAM },
+      required: ['smiles'],
+    },
+    annotations: { readOnlyHint: true },
+    execute: guarded('analyse_structure', async ({ smiles }: { smiles: string }) => {
+      const found = await profile(smiles)
+      store().note({
+        actor: 'agent',
+        tool: 'analyse_structure',
+        detail: `${found.groups.length} groups, ${found.alerts.length} alerts`,
+        ok: found.alerts.length === 0,
+      })
+      return ok({
+        smiles,
+        functionalGroups: found.groups,
+        alerts: found.alerts,
+        verdict: found.alerts.length
+          ? `Carries ${found.alerts.length} structural alert(s). Say so plainly rather ` +
+            'than presenting this as a clean molecule.'
+          : 'No structural alerts from the shipped set.',
+        caveat:
+          'The alert set here is a small, verified list of well-established liabilities. ' +
+          'It is NOT the full PAINS, Brenk or NIH catalog, so a clean result means ' +
+          'nothing matched these patterns, not that the molecule is known to be safe.',
+      })
+    }),
+  },
+
+  {
+    name: 'suggest_bioisosteres',
+    description:
+      'Given a molecule, list known replacements for the functional groups it actually ' +
+      'contains, with the usual direction each change moves properties. This app cannot ' +
+      'apply a transformation -- YOU write the new SMILES using these suggestions, then ' +
+      'call propose_candidate so the real numbers get computed. The direction given here ' +
+      'is a rule of thumb, never a value: only computing the modified molecule tells you ' +
+      'what actually happened.',
+    inputSchema: {
+      type: 'object',
+      properties: { smiles: SMILES_PARAM },
+      required: ['smiles'],
+    },
+    annotations: { readOnlyHint: true },
+    execute: guarded('suggest_bioisosteres', async ({ smiles }: { smiles: string }) => {
+      const found = await profile(smiles)
+      const suggestions = suggestionsFor(found.groups)
+      store().note({
+        actor: 'agent',
+        tool: 'suggest_bioisosteres',
+        detail: `${suggestions.length} for ${found.groups.length} groups`,
+        ok: suggestions.length > 0,
+      })
+      if (suggestions.length === 0) {
+        return ok({
+          groupsPresent: found.groups.map((g) => g.label),
+          suggestions: [],
+          note:
+            'No catalogued replacements for the groups in this molecule. Modify ring ' +
+            'systems or substituents directly instead, and let propose_candidate measure ' +
+            'the result.',
+        })
+      }
+      return ok({
+        groupsPresent: found.groups.map((g) => g.label),
+        suggestions,
+        note:
+          'Pick a replacement, write the modified SMILES yourself, and propose it. The ' +
+          '`effect` field is a direction of travel, not a prediction -- state your own ' +
+          'predicted values when you propose so they can be checked.',
+      })
+    }),
   },
 
   {

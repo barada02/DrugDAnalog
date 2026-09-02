@@ -1,4 +1,5 @@
 import type { Candidate, CandidateStatus, Prediction, Scaffold } from './workbench'
+import type { Constraint } from '../chem/constraints'
 
 /**
  * Session persistence in localStorage.
@@ -29,6 +30,7 @@ export type Saved = {
   version: 1
   goal: string
   scaffold: Scaffold | null
+  constraints: Constraint[]
   focusSmiles: string | null
   focusId: string | null
   candidates: SavedCandidate[]
@@ -37,6 +39,7 @@ export type Saved = {
 export function toSeed(state: {
   goal: string
   scaffold: Scaffold | null
+  constraints: Constraint[]
   focusSmiles: string | null
   focusId: string | null
   candidates: Candidate[]
@@ -45,6 +48,7 @@ export function toSeed(state: {
     version: 1,
     goal: state.goal,
     scaffold: state.scaffold,
+    constraints: state.constraints,
     focusSmiles: state.focusSmiles,
     focusId: state.focusId,
     candidates: state.candidates.map((c) => ({

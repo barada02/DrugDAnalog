@@ -5,6 +5,7 @@ import { GROUPS } from './chem/groups'
 import { MEASURES } from './chem/measures'
 import { band, diversity } from './chem/similarity'
 import { buildLedger } from './chem/ledger'
+import { CONSTRAINT_PRESETS, describeConstraint } from './chem/constraints'
 import { download, toCsv, toSmiles } from './chem/export'
 import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
@@ -111,6 +112,110 @@ function Rules({ report }: { report: Candidate['rules'] }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+/** Reactive or interfering groups. A clean property table does not excuse these. */
+function Alerts({ hits }: { hits: Candidate['profile']['alerts'] }) {
+  if (hits.length === 0) return null
+  return (
+    <ul className="alerts">
+      {hits.map((a) => (
+        <li key={a.label} className={'alerts__item alerts__item--' + a.severity}>
+          <strong>{a.label}</strong> {a.why}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function Groups({ groups }: { groups: Candidate['profile']['groups'] }) {
+  if (groups.length === 0) return null
+  return (
+    <p className="groups">
+      {groups.map((g) => (
+        <span key={g.label} className="groups__tag" title={g.about}>
+          {g.label}
+          {g.count > 1 && <span className="groups__n">{g.count}</span>}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/** How a molecule scores against what the human actually asked for. */
+function Constraints({ report }: { report: Candidate['constraints'] }) {
+  if (report.total === 0) return null
+  return (
+    <div className="cbox">
+      <p className={'cbox__score' + (report.allMet ? ' cbox__score--met' : '')}>
+        Goals met {report.satisfied}/{report.total}
+      </p>
+      <ul className="cbox__list">
+        {report.checks.map((c) => (
+          <li key={c.key} className={c.satisfied ? 'cbox__ok' : 'cbox__bad'}>
+            {c.message}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * The human's objective, made checkable. Deliberately not a published
+ * drug-likeness score -- it is whatever was asked for, scored honestly.
+ */
+function ConstraintPanel() {
+  const constraints = useWorkbench((s) => s.constraints)
+  const setConstraints = useWorkbench((s) => s.setConstraints)
+  const focus = useWorkbench((s) => s.focus)
+  const note = useWorkbench((s) => s.note)
+
+  return (
+    <section className="panel">
+      <h2>Target profile</h2>
+      <p className="hint">
+        What you are aiming for. Every candidate is scored against it, and the agent is
+        told to satisfy all of them at once rather than one at a time.
+      </p>
+      <div className="presets">
+        {CONSTRAINT_PRESETS.map((preset) => (
+          <button
+            key={preset.name}
+            className={
+              'chip' +
+              (JSON.stringify(preset.constraints) === JSON.stringify(constraints)
+                ? ' chip--on'
+                : '')
+            }
+            onClick={() => {
+              setConstraints(preset.constraints)
+              note({ actor: 'human', tool: 'set_target_profile', detail: preset.name, ok: true })
+            }}
+          >
+            {preset.name}
+          </button>
+        ))}
+        {constraints.length > 0 && (
+          <button className="chip" onClick={() => setConstraints([])}>
+            clear
+          </button>
+        )}
+      </div>
+      {constraints.length === 0 ? (
+        <p className="empty">No target set. Candidates are judged on rules alone.</p>
+      ) : (
+        <>
+          <ul className="cbox__list cbox__list--spaced">
+            {constraints.map((c) => (
+              <li key={c.key}>{describeConstraint(c)}</li>
+            ))}
+          </ul>
+          {focus && <Constraints report={focus.constraints} />}
+        </>
+      )}
+    </section>
   )
 }
 
@@ -306,6 +411,8 @@ function FocusPanel() {
             Estimated, so treat it as a direction of travel, not a measurement.
           </p>
           <Warnings p={focus.properties} />
+          <Groups groups={focus.profile.groups} />
+          <Alerts hits={focus.profile.alerts} />
           <Rules report={focus.rules} />
         </>
       )}
@@ -430,6 +537,12 @@ function Board() {
                 }
                 tone={candidate.rules.passes ? 'ok' : 'bad'}
               />
+              {candidate.profile.alerts.length > 0 && (
+                <Badge
+                  label={`${candidate.profile.alerts.length} alert${candidate.profile.alerts.length > 1 ? 's' : ''}`}
+                  tone="bad"
+                />
+              )}
               {candidate.similarityToParent !== null && (
                 <Badge
                   label={`${band(candidate.similarityToParent)} ${candidate.similarityToParent}`}
@@ -457,6 +570,8 @@ function Board() {
               </p>
             )}
             <Warnings p={candidate.properties} />
+            <Alerts hits={candidate.profile.alerts} />
+            <Constraints report={candidate.constraints} />
             <Properties p={candidate.properties} />
             <Scorecard candidate={candidate} />
             {!candidate.rules.passes && (
@@ -638,6 +753,7 @@ export default function App() {
           <div className="column">
             <FocusPanel />
             <ScaffoldPanel />
+            <ConstraintPanel />
           </div>
           <Board />
           <div className="column">
