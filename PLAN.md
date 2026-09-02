@@ -554,8 +554,54 @@ memory.
   table. Answers "could this even be made", the question that kills most AI-generated
   molecules.
 
+## Phase 4 status
+
+| Piece | State |
+|---|---|
+| Functional group inventory | **Done.** 28 groups, every pattern executed against known positives and negatives. |
+| Structural alerts | **Done, as a small verified set** -- explicitly not the published catalogs. |
+| Bioisostere suggestions | **Done** as a lookup the agent applies and the app checks. |
+| Target profile (constraints) | **Done.** Replaces QED, see below. |
+| Synthetic accessibility | **Blocked.** Needs a ~600 KB published fragment-contribution table. |
+| QED | **Still blocked.** Needs the 116-pattern alert list its ALERTS term is defined against. |
+
+Tools now nine: `get_workbench_state`, `get_molecule_properties`,
+`check_substructure`, `propose_candidate`, `analyse_structure`,
+`suggest_bioisosteres`, `compare_molecules`, `get_computable_limits`,
+`set_focus_molecule`.
+
+### Target profile instead of QED
+
+QED and the SA score both need published data files we cannot reproduce from
+memory without risking subtly wrong output, so both stay blocked until someone
+sources the actual data. Unblocking them is a fetch, not a build.
+
+Inventing our own composite score to fill the gap would have been the same false
+authority in a different hat. Instead the human states a target profile -- MW under
+450, logP 1 to 3, TPSA over 60 -- and every candidate is scored against **that**.
+It carries no claim to be a published metric, it is multi-parameter in the way real
+lead optimisation actually is, and it gives the agent a concrete objective. Four
+presets ship: oral drug, more soluble, lead-like, brain penetrant.
+
+### Lessons worth keeping
+
+**Verify patterns, do not recall them.** Writing the SMARTS then testing against
+known molecules caught two wrong patterns of mine: `ether` claimed aspirin's ester
+oxygen and the epoxide; `aniline nitrogen` claimed nitrobenzene's nitro group.
+
+**Recursive SMARTS exclusions match their own group.**
+`[CX3](=[OX1])[OX2H0;!$(O[CX3]=[OX1])][#6]` matches no ester at all, because every
+ester oxygen is bonded to its own carbonyl.
+
+**Group suppression has to be per site, not per molecule.** Aspirin has a genuine
+ester *and* a separate carboxylic acid; vorinostat has a hydroxamic acid *and* a
+distinct anilide amide. Whole-molecule suppression silently deleted both.
+
+---
+
 **Done when:** proposing a known problem compound gets flagged with the reason, and
-asking "what could replace this acid" returns real options with real numbers.
+asking "what could replace this acid" returns real options the agent then has to
+compute.
 
 ---
 
