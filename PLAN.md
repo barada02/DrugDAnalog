@@ -53,12 +53,56 @@ whether numbers matched. Phase 1 closes that gap.
 
 ---
 
+## The one hard constraint
+
+**No AI goes inside this application.** No model API calls, no keys, no backend, no
+inference, no bundled weights. The app ships nothing that thinks.
+
+The intelligence arrives from outside, through WebMCP — the user brings their own
+agent (ChatGPT's in-app browser, a Chrome extension, whatever they already pay for)
+and it talks to the page through `document.modelContext`.
+
+This is a constraint and it is also the whole idea, so it's worth being precise about
+what it means day to day:
+
+**What it rules out.** Any "✨ AI suggestions" button. Any natural-language input the
+app parses itself. Any "explain this to me" feature that generates prose. Anything
+needing a key, a server, or a network call to a model.
+
+**What it means the app must be.** Three things a language model fundamentally cannot
+do for itself, done extremely well:
+
+1. **Compute** — deterministic, verifiable truth. RDKit, formulas, lookup tables.
+   Same input, same output, every time, offline.
+2. **Remember** — durable state across a whole session that the agent can read and
+   write. The agent's context window is not a workbench; ours is.
+3. **Show** — render something to a human that could never be pasted into a chat box.
+
+**What it means for how we build.** Since we don't control the model, our only lever
+is the tool surface. Tool names, descriptions, input schemas, and above all *what the
+responses say* — that is the entire steering mechanism. A tool response is not just
+data being returned, it is an instruction being given to something we don't own. This
+is why the `hint` field in Phase 1's errors matters more than it looks.
+
+It also means **model-agnostic by default.** We cannot assume any particular model's
+capabilities. Tools must be self-describing, forgiving of bad input, and useful to a
+weak agent as well as a strong one.
+
+**The test for every feature:** does it still work with the agent switched off? If
+yes, and an agent makes it dramatically better, build it. If it only works *because*
+an agent is there, it's the wrong feature.
+
+---
+
 ## What "done" means for the whole project
 
 > The agent proposes. The app computes. The agent is corrected by the tool before the
 > human ever sees the mistake. The human decides.
 
 If a feature doesn't serve that sentence, it waits.
+
+IDEA.md is background, not specification. Where this plan and that document disagree,
+this plan wins; where either disagrees with the constraint above, the constraint wins.
 
 ---
 
