@@ -27,14 +27,19 @@ function useBootstrap() {
   const [mcpError, setMcpError] = useState<string | null>(supportProblem)
 
   useEffect(() => {
-    const { setRdkitStatus, setFocus, note } = useWorkbench.getState()
+    const { setRdkitStatus, setFocus, restore, note } = useWorkbench.getState()
     let cancelled = false
     getRDKit()
       .then(async (rdkit) => {
         if (cancelled) return
         setRdkitStatus('ready')
         note({ actor: 'human', tool: 'rdkit', detail: 'loaded ' + rdkit.version(), ok: true })
-        await setFocus(PRESETS[0].smiles)
+        // A saved session wins over the default preset, but never silently:
+        // the log says the board was restored rather than freshly built.
+        const restored = await restore()
+        if (cancelled) return
+        if (restored) note({ actor: 'human', tool: 'restore', detail: 'previous session', ok: true })
+        else await setFocus(PRESETS[0].smiles)
       })
       .catch((error: Error) => {
         if (!cancelled) setRdkitStatus('error', error.message)
@@ -316,6 +321,7 @@ function Board() {
   const setGoal = useWorkbench((s) => s.setGoal)
   const scaffold = useWorkbench((s) => s.scaffold)
   const decide = useWorkbench((s) => s.decide)
+  const reset = useWorkbench((s) => s.reset)
   const promote = useWorkbench((s) => s.promote)
   const focusId = useWorkbench((s) => s.focusId)
   const note = useWorkbench((s) => s.note)
@@ -375,6 +381,17 @@ function Board() {
             }
           >
             Export SMILES
+          </button>
+          <button
+            className="chip"
+            onClick={() => {
+              if (confirm('Clear the board and the saved session? This cannot be undone.')) {
+                reset()
+                void useWorkbench.getState().setFocus(PRESETS[0].smiles)
+              }
+            }}
+          >
+            Clear board
           </button>
         </div>
       )}

@@ -7,6 +7,7 @@ import { matchPattern } from '../chem/substructure'
 import type { Match } from '../chem/substructure'
 import { fingerprint, tanimoto } from '../chem/similarity'
 import type { Fingerprint } from '../chem/similarity'
+import { clear as clearSaved, load, save, toSeed } from './persist'
 
 /**
  * The part of the molecule the human has told everyone to leave alone.
@@ -98,6 +99,9 @@ type WorkbenchActions = {
   decide: (id: string, status: Exclude<CandidateStatus, 'pending'>) => void
   /** Make an accepted candidate the focus, recording it as the parent of what follows. */
   promote: (id: string) => Promise<Molecule>
+  /** Rebuild a saved session. Returns false when there was nothing to restore. */
+  restore: () => Promise<boolean>
+  reset: () => void
   note: (entry: Omit<LogEntry, 'id' | 'at'>) => void
 }
 
@@ -228,4 +232,81 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   note: (entry) =>
     set((state) => ({ log: [{ ...entry, id: id(), at: Date.now() }, ...state.log].slice(0, 100) })),
+
+  /**
+   * Rehydrate from the seed, recomputing every derived value. Candidates are
+   * rebuilt in creation order so lineage and parent similarity resolve against
+   * a board that already contains their parent.
+   */
+  restore: async () => {
+    const seed = load()
+    if (!seed) return false
+
+    const scaffold = seed.scaffold
+    const ordered = [...seed.candidates].sort((a, b) => a.createdAt - b.createdAt)
+
+    const rebuilt: Candidate[] = []
+    for (const saved of ordered) {
+      try {
+        const { properties, rules, svg, scaffoldMatch, fp } = await buildMolecule(
+          saved.smiles,
+          scaffold,
+        )
+        const parent = rebuilt.find((c) => c.id === saved.parentId)
+        rebuilt.push({
+          ...saved,
+          properties,
+          rules,
+          svg,
+          fp,
+          parentSmiles: parent?.properties.canonicalSmiles ?? null,
+          similarityToParent: parent ? tanimoto(fp, parent.fp) : null,
+          scorecard: score(saved.prediction, properties),
+          scaffoldOk: scaffold ? (scaffoldMatch?.matched ?? false) : null,
+        })
+      } catch {
+        // A SMILES that no longer parses is dropped rather than failing the
+        // whole restore. One bad card must not cost the session.
+      }
+    }
+
+    const focus = seed.focusSmiles ? await buildMolecule(seed.focusSmiles, scaffold) : null
+    set({
+      goal: seed.goal,
+      scaffold,
+      focus,
+      focusId: seed.focusId,
+      candidates: [...rebuilt].reverse(),
+    })
+    return true
+  },
+
+  reset: () => {
+    clearSaved()
+    set({ goal: '', scaffold: null, focus: null, focusId: null, candidates: [], log: [] })
+  },
 }))
+
+/**
+ * Persist on every change that alters the board. Subscribing here rather than
+ * writing inside each action means no future action can forget to save.
+ */
+useWorkbench.subscribe((state, previous) => {
+  if (
+    state.candidates === previous.candidates &&
+    state.goal === previous.goal &&
+    state.scaffold === previous.scaffold &&
+    state.focus === previous.focus
+  ) {
+    return
+  }
+  save(
+    toSeed({
+      goal: state.goal,
+      scaffold: state.scaffold,
+      focusSmiles: state.focus?.properties.canonicalSmiles ?? null,
+      focusId: state.focusId,
+      candidates: state.candidates,
+    }),
+  )
+})
