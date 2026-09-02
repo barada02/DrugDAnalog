@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { getRDKit } from './chem/rdkit'
 import { PRESETS } from './chem/properties'
+import { GROUPS } from './chem/groups'
+import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
 import { useWorkbench } from './store/workbench'
 import type { Candidate } from './store/workbench'
@@ -93,6 +95,99 @@ function Scorecard({ candidate }: { candidate: Candidate }) {
   )
 }
 
+/**
+ * Where the human draws the line: pick a group and nothing may remove it.
+ * Everything already on the board is re-checked the moment this changes.
+ */
+function ScaffoldPanel() {
+  const scaffold = useWorkbench((s) => s.scaffold)
+  const focus = useWorkbench((s) => s.focus)
+  const setScaffold = useWorkbench((s) => s.setScaffold)
+  const note = useWorkbench((s) => s.note)
+  const [custom, setCustom] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const pin = async (label: string, smarts: string, about: string) => {
+    setError(null)
+    if (!(await isValidPattern(smarts))) {
+      setError(`"${smarts}" is not a valid SMARTS pattern.`)
+      return
+    }
+    await setScaffold({ label, smarts, about })
+    note({ actor: 'human', tool: 'pin_scaffold', detail: `${label}  ${smarts}`, ok: true })
+  }
+
+  const clear = async () => {
+    setError(null)
+    await setScaffold(null)
+    note({ actor: 'human', tool: 'pin_scaffold', detail: 'cleared', ok: true })
+  }
+
+  // Present in the focus molecule? Worth knowing before you pin something absent.
+  const presentInFocus = focus?.scaffoldMatch?.matched ?? null
+
+  return (
+    <section className="panel">
+      <h2>Preserve</h2>
+      <p className="hint">
+        Pin a group and it must survive every proposal. The app checks each candidate
+        and tells the agent when it broke the promise.
+      </p>
+
+      <div className="presets">
+        {GROUPS.map((group) => (
+          <button
+            key={group.label}
+            className={'chip' + (scaffold?.smarts === group.smarts ? ' chip--on' : '')}
+            title={group.about}
+            onClick={() => void pin(group.label, group.smarts, group.about)}
+          >
+            {group.label}
+          </button>
+        ))}
+      </div>
+
+      <form
+        className="row row--tight"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void pin(custom, custom, 'Custom SMARTS pattern.')
+        }}
+      >
+        <input
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          spellCheck={false}
+          placeholder="or your own SMARTS"
+          aria-label="Custom SMARTS pattern"
+        />
+        <button type="submit" disabled={!custom.trim()}>Pin</button>
+      </form>
+
+      {error && <p className="error">{error}</p>}
+
+      {scaffold ? (
+        <div className="pinned">
+          <div className="pinned__head">
+            <strong>{scaffold.label}</strong>
+            <button className="chip" onClick={() => void clear()}>clear</button>
+          </div>
+          <code className="smiles">{scaffold.smarts}</code>
+          <p className="hint">{scaffold.about}</p>
+          {presentInFocus === false && (
+            <p className="warn">
+              The focus molecule does not contain this group, so every candidate will fail
+              the check. Pin something the starting molecule actually has.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="empty">Nothing pinned. Candidates are judged on properties alone.</p>
+      )}
+    </section>
+  )
+}
+
 function FocusPanel() {
   const focus = useWorkbench((s) => s.focus)
   const setFocus = useWorkbench((s) => s.setFocus)
@@ -140,6 +235,13 @@ function FocusPanel() {
       {focus && (
         <>
           <div className="depiction" dangerouslySetInnerHTML={{ __html: focus.svg }} />
+          {focus.scaffoldMatch?.matched && (
+            <p className="hint hint--mark">
+              Shaded: the pinned group{focus.scaffoldMatch.count > 1
+                ? ` (${focus.scaffoldMatch.count} occurrences, first one marked)`
+                : ''}
+            </p>
+          )}
           <code className="smiles">{focus.properties.canonicalSmiles}</code>
           <Properties p={focus.properties} />
           <p className={focus.lipinski.passes ? 'verdict verdict--pass' : 'verdict verdict--fail'}>
@@ -157,6 +259,7 @@ function Board() {
   const candidates = useWorkbench((s) => s.candidates)
   const goal = useWorkbench((s) => s.goal)
   const setGoal = useWorkbench((s) => s.setGoal)
+  const scaffold = useWorkbench((s) => s.scaffold)
 
   return (
     <section className="panel">
@@ -175,13 +278,24 @@ function Board() {
       )}
       <div className="cards">
         {candidates.map((candidate) => (
-          <article key={candidate.id} className="card">
+          <article
+            key={candidate.id}
+            className={'card' + (candidate.scaffoldOk === false ? ' card--broke' : '')}
+          >
             <header>
               <Badge label={candidate.source} tone={candidate.source === 'agent' ? 'wait' : 'ok'} />
               <Badge
                 label={candidate.lipinski.passes ? 'Lipinski pass' : 'Lipinski fail'}
                 tone={candidate.lipinski.passes ? 'ok' : 'bad'}
               />
+              {candidate.scaffoldOk !== null && scaffold && (
+                <Badge
+                  label={
+                    candidate.scaffoldOk ? `${scaffold.label} kept` : `${scaffold.label} lost`
+                  }
+                  tone={candidate.scaffoldOk ? 'ok' : 'bad'}
+                />
+              )}
             </header>
             <div
               className="depiction depiction--sm"
@@ -189,6 +303,11 @@ function Board() {
             />
             <code className="smiles">{candidate.properties.canonicalSmiles}</code>
             {candidate.rationale && <p className="rationale">{candidate.rationale}</p>}
+            {candidate.scaffoldOk === false && scaffold && (
+              <p className="violations">
+                Does not contain the {scaffold.label} this design was supposed to keep.
+              </p>
+            )}
             <Properties p={candidate.properties} />
             <Scorecard candidate={candidate} />
             {!candidate.lipinski.passes && (
@@ -229,7 +348,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Analog <span className="topbar__sub">stage 0</span></h1>
+        <h1>Analog <span className="topbar__sub">stage 1 - the referee</span></h1>
         <div className="topbar__status">
           <Badge label={rdkitLabel} tone={status === 'ready' ? 'ok' : status === 'error' ? 'bad' : 'wait'} />
           <Badge
@@ -254,7 +373,10 @@ export default function App() {
 
       {status === 'ready' && (
         <main className="grid">
-          <FocusPanel />
+          <div className="column">
+            <FocusPanel />
+            <ScaffoldPanel />
+          </div>
           <Board />
           <CallLog />
         </main>

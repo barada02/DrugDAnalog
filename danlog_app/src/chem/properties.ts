@@ -54,10 +54,29 @@ export function lipinski(p: Properties): LipinskiResult {
   return { passes: violations.length === 0, violations }
 }
 
-export async function renderSvg(smiles: string, width = 320, height = 240): Promise<string> {
-  return withMol(smiles, (mol) =>
-    mol.get_svg_with_highlights(JSON.stringify({ width, height, backgroundColour: [0, 0, 0, 0] })),
-  )
+export type RenderOptions = {
+  width?: number
+  height?: number
+  /** Atom indices to shade -- comes straight from a `Match`. */
+  atoms?: number[]
+  bonds?: number[]
+}
+
+export async function renderSvg(smiles: string, options: RenderOptions = {}): Promise<string> {
+  const { width = 320, height = 240, atoms, bonds } = options
+  const details: Record<string, unknown> = {
+    width,
+    height,
+    backgroundColour: [0, 0, 0, 0],
+  }
+  // Only send the highlight keys when there is something to highlight; an empty
+  // atoms array makes RDKit draw nothing rather than drawing everything plain.
+  if (atoms?.length) {
+    details.atoms = atoms
+    details.bonds = bonds ?? []
+    details.highlightColour = [0.42, 0.66, 1.0, 0.45]
+  }
+  return withMol(smiles, (mol) => mol.get_svg_with_highlights(JSON.stringify(details)))
 }
 
 export const PRESETS: { name: string; smiles: string }[] = [

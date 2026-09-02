@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import { computeProperties, lipinski, renderSvg } from '../chem/properties'
 import type { LipinskiResult, Properties } from '../chem/properties'
+import { matchPattern } from '../chem/substructure'
+import type { Match } from '../chem/substructure'
+
+/**
+ * The part of the molecule the human has told everyone to leave alone.
+ * Null means nothing is pinned and no proposal can fail the check.
+ */
+export type Scaffold = { label: string; smarts: string; about: string }
 
 /** What the agent claimed BEFORE the oracle ran. Every field optional. */
 export type Prediction = Partial<Pick<Properties, 'mw' | 'logP' | 'tpsa'>>
@@ -18,6 +26,8 @@ export type Candidate = {
   parentSmiles: string | null
   prediction: Prediction | null
   scorecard: ScoreRow[]
+  /** null when no scaffold was pinned, so "not checked" never reads as "failed". */
+  scaffoldOk: boolean | null
   createdAt: number
 }
 
@@ -30,12 +40,18 @@ export type LogEntry = {
   ok: boolean
 }
 
-export type Molecule = { properties: Properties; lipinski: LipinskiResult; svg: string }
+export type Molecule = {
+  properties: Properties
+  lipinski: LipinskiResult
+  svg: string
+  scaffoldMatch: Match | null
+}
 
 type WorkbenchState = {
   rdkitStatus: 'loading' | 'ready' | 'error'
   rdkitError: string | null
   goal: string
+  scaffold: Scaffold | null
   focus: Molecule | null
   candidates: Candidate[]
   log: LogEntry[]
@@ -44,6 +60,7 @@ type WorkbenchState = {
 type WorkbenchActions = {
   setRdkitStatus: (status: WorkbenchState['rdkitStatus'], error?: string) => void
   setGoal: (goal: string) => void
+  setScaffold: (scaffold: Scaffold | null) => Promise<void>
   setFocus: (smiles: string) => Promise<Molecule>
   addCandidate: (input: {
     smiles: string
@@ -70,10 +87,22 @@ function score(prediction: Prediction | null | undefined, actual: Properties): S
     })
 }
 
-export async function buildMolecule(smiles: string): Promise<Molecule> {
+/**
+ * One molecule, fully worked out: descriptors, rule verdict, a picture, and --
+ * when a scaffold is pinned -- whether it survived, with the match shaded in
+ * the picture.
+ */
+export async function buildMolecule(
+  smiles: string,
+  scaffold: Scaffold | null,
+): Promise<Molecule> {
   const properties = await computeProperties(smiles)
-  const [svg] = await Promise.all([renderSvg(smiles)])
-  return { properties, lipinski: lipinski(properties), svg }
+  const scaffoldMatch = scaffold ? await matchPattern(smiles, scaffold.smarts) : null
+  const svg = await renderSvg(
+    smiles,
+    scaffoldMatch?.matched ? { atoms: scaffoldMatch.atoms, bonds: scaffoldMatch.bonds } : {},
+  )
+  return { properties, lipinski: lipinski(properties), svg, scaffoldMatch }
 }
 
 /**
@@ -85,6 +114,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   rdkitStatus: 'loading',
   rdkitError: null,
   goal: '',
+  scaffold: null,
   focus: null,
   candidates: [],
   log: [],
@@ -94,14 +124,38 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   setGoal: (goal) => set({ goal }),
 
+  /**
+   * Pinning a scaffold is retroactive: everything already on the board is
+   * re-checked and re-drawn against the new pattern. A card that silently kept
+   * an old verdict would be worse than no verdict at all.
+   */
+  setScaffold: async (scaffold) => {
+    const { focus, candidates } = get()
+    const [nextFocus, nextCandidates] = await Promise.all([
+      focus ? buildMolecule(focus.properties.canonicalSmiles, scaffold) : null,
+      Promise.all(
+        candidates.map(async (candidate) => {
+          const molecule = await buildMolecule(candidate.smiles, scaffold)
+          return {
+            ...candidate,
+            svg: molecule.svg,
+            scaffoldOk: scaffold ? (molecule.scaffoldMatch?.matched ?? false) : null,
+          }
+        }),
+      ),
+    ])
+    set({ scaffold, candidates: nextCandidates, ...(nextFocus ? { focus: nextFocus } : {}) })
+  },
+
   setFocus: async (smiles) => {
-    const molecule = await buildMolecule(smiles)
+    const molecule = await buildMolecule(smiles, get().scaffold)
     set({ focus: molecule })
     return molecule
   },
 
   addCandidate: async ({ smiles, rationale = '', prediction = null, source }) => {
-    const { properties, lipinski: rules, svg } = await buildMolecule(smiles)
+    const scaffold = get().scaffold
+    const { properties, lipinski: rules, svg, scaffoldMatch } = await buildMolecule(smiles, scaffold)
     const candidate: Candidate = {
       id: id(),
       smiles,
@@ -113,6 +167,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       parentSmiles: get().focus?.properties.canonicalSmiles ?? null,
       prediction,
       scorecard: score(prediction, properties),
+      scaffoldOk: scaffold ? (scaffoldMatch?.matched ?? false) : null,
       createdAt: Date.now(),
     }
     set((state) => ({ candidates: [candidate, ...state.candidates] }))

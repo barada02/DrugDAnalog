@@ -218,3 +218,47 @@ button:hover { border-color: var(--accent); }
 
 .error { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
 .warn { background: color-mix(in srgb, var(--wait) 12%, transparent); color: var(--wait); }
+
+/* --- stage 1: scaffold preservation --- */
+
+.column { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.hint { color: var(--muted); font-size: 12.5px; margin: 0 0 12px; }
+.hint--mark { margin: 0 0 8px; }
+
+.row--tight { margin-top: 10px; }
+
+.chip--on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:disabled:hover { border-color: var(--line); }
+
+.pinned {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.pinned__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pinned .hint { margin: 6px 0 0; }
+.pinned .warn { margin-top: 8px; }
+
+/* A candidate that dropped the pinned group. The board should make this
+   impossible to miss -- it is the failure the whole stage exists to catch. */
+.card--broke {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  background: color-mix(in srgb, var(--bad) 6%, #12151c);
+}
