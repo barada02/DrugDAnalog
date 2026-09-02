@@ -40,6 +40,13 @@ export class InvalidSmilesError extends Error {
   }
 }
 
+export class InvalidSmartsError extends Error {
+  constructor(smarts: string) {
+    super(`Not a valid SMARTS pattern: ${JSON.stringify(smarts)}`)
+    this.name = 'InvalidSmartsError'
+  }
+}
+
 /**
  * The ONLY place `get_mol` is called. Every JSMol is a C++ object on the
  * emscripten heap and leaks unless `.delete()` runs, so the lifetime is owned
@@ -59,5 +66,30 @@ export async function withMol<T>(smiles: string, fn: (mol: JSMol) => T): Promise
     return fn(mol)
   } finally {
     mol.delete()
+  }
+}
+
+/**
+ * The query-molecule twin of `withMol`. A SMARTS pattern compiles to the same
+ * kind of heap-allocated C++ object a SMILES does and leaks the same way, so it
+ * gets the same single owner.
+ *
+ * Kept separate from `withMol` because `get_qmol` accepts patterns `get_mol`
+ * rejects -- `[CX3](=O)[OX2H1]` is a valid query and not a valid molecule.
+ */
+export async function withQMol<T>(smarts: string, fn: (qmol: JSMol) => T): Promise<T> {
+  const rdkit = await getRDKit()
+  let qmol: JSMol | null = null
+  try {
+    qmol = rdkit.get_qmol(smarts)
+  } catch {
+    throw new InvalidSmartsError(smarts)
+  }
+  if (!qmol) throw new InvalidSmartsError(smarts)
+  try {
+    if (!qmol.is_valid()) throw new InvalidSmartsError(smarts)
+    return fn(qmol)
+  } finally {
+    qmol.delete()
   }
 }
