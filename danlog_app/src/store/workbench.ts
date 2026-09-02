@@ -5,6 +5,8 @@ import { assess } from '../chem/rules'
 import type { RuleReport } from '../chem/rules'
 import { matchPattern } from '../chem/substructure'
 import type { Match } from '../chem/substructure'
+import { fingerprint, tanimoto } from '../chem/similarity'
+import type { Fingerprint } from '../chem/similarity'
 
 /**
  * The part of the molecule the human has told everyone to leave alone.
@@ -26,6 +28,14 @@ export type Candidate = {
   rationale: string
   source: 'human' | 'agent'
   parentSmiles: string | null
+  /**
+   * The candidate this was designed from, or null if it came off a molecule
+   * loaded straight into focus. This is the edge the lineage tree draws.
+   */
+  parentId: string | null
+  fp: Fingerprint
+  /** Tanimoto against the parent. Low means the agent changed more than it said. */
+  similarityToParent: number | null
   prediction: Prediction | null
   scorecard: ScoreRow[]
   /** null when no scaffold was pinned, so "not checked" never reads as "failed". */
@@ -55,6 +65,7 @@ export type Molecule = {
   rules: RuleReport
   svg: string
   scaffoldMatch: Match | null
+  fp: Fingerprint
 }
 
 type WorkbenchState = {
@@ -63,6 +74,12 @@ type WorkbenchState = {
   goal: string
   scaffold: Scaffold | null
   focus: Molecule | null
+  /**
+   * Which candidate the focus molecule is, when it is one. Null when the human
+   * typed a SMILES straight in. New proposals hang off this, which is what
+   * makes the lineage a real tree rather than a flat list.
+   */
+  focusId: string | null
   candidates: Candidate[]
   log: LogEntry[]
 }
@@ -71,7 +88,7 @@ type WorkbenchActions = {
   setRdkitStatus: (status: WorkbenchState['rdkitStatus'], error?: string) => void
   setGoal: (goal: string) => void
   setScaffold: (scaffold: Scaffold | null) => Promise<void>
-  setFocus: (smiles: string) => Promise<Molecule>
+  setFocus: (smiles: string, candidateId?: string | null) => Promise<Molecule>
   addCandidate: (input: {
     smiles: string
     rationale?: string
@@ -79,6 +96,8 @@ type WorkbenchActions = {
     source: 'human' | 'agent'
   }) => Promise<Candidate>
   decide: (id: string, status: Exclude<CandidateStatus, 'pending'>) => void
+  /** Make an accepted candidate the focus, recording it as the parent of what follows. */
+  promote: (id: string) => Promise<Molecule>
   note: (entry: Omit<LogEntry, 'id' | 'at'>) => void
 }
 
@@ -113,7 +132,8 @@ export async function buildMolecule(
     smiles,
     scaffoldMatch?.matched ? { atoms: scaffoldMatch.atoms, bonds: scaffoldMatch.bonds } : {},
   )
-  return { properties, rules: assess(properties), svg, scaffoldMatch }
+  const fp = await fingerprint(smiles)
+  return { properties, rules: assess(properties), svg, scaffoldMatch, fp }
 }
 
 /**
@@ -127,6 +147,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   goal: '',
   scaffold: null,
   focus: null,
+  focusId: null,
   candidates: [],
   log: [],
 
@@ -158,15 +179,15 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
     set({ scaffold, candidates: nextCandidates, ...(nextFocus ? { focus: nextFocus } : {}) })
   },
 
-  setFocus: async (smiles) => {
+  setFocus: async (smiles, candidateId = null) => {
     const molecule = await buildMolecule(smiles, get().scaffold)
-    set({ focus: molecule })
+    set({ focus: molecule, focusId: candidateId })
     return molecule
   },
 
   addCandidate: async ({ smiles, rationale = '', prediction = null, source }) => {
-    const scaffold = get().scaffold
-    const { properties, rules, svg, scaffoldMatch } = await buildMolecule(smiles, scaffold)
+    const { scaffold, focus, focusId } = get()
+    const { properties, rules, svg, scaffoldMatch, fp } = await buildMolecule(smiles, scaffold)
     const candidate: Candidate = {
       id: id(),
       smiles,
@@ -175,7 +196,10 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       svg,
       rationale,
       source,
-      parentSmiles: get().focus?.properties.canonicalSmiles ?? null,
+      parentSmiles: focus?.properties.canonicalSmiles ?? null,
+      parentId: focusId,
+      fp,
+      similarityToParent: focus ? tanimoto(fp, focus.fp) : null,
       prediction,
       scorecard: score(prediction, properties),
       scaffoldOk: scaffold ? (scaffoldMatch?.matched ?? false) : null,
@@ -195,6 +219,12 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
         candidate.id === id ? { ...candidate, status, decidedAt: Date.now() } : candidate,
       ),
     })),
+
+  promote: async (candidateId) => {
+    const candidate = get().candidates.find((c) => c.id === candidateId)
+    if (!candidate) throw new Error(`No candidate with id ${candidateId}`)
+    return get().setFocus(candidate.smiles, candidateId)
+  },
 
   note: (entry) =>
     set((state) => ({ log: [{ ...entry, id: id(), at: Date.now() }, ...state.log].slice(0, 100) })),

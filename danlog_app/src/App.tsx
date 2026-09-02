@@ -3,6 +3,7 @@ import { getRDKit } from './chem/rdkit'
 import { PRESETS } from './chem/properties'
 import { GROUPS } from './chem/groups'
 import { MEASURES } from './chem/measures'
+import { band, diversity } from './chem/similarity'
 import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
 import { useWorkbench } from './store/workbench'
@@ -313,6 +314,8 @@ function Board() {
   const setGoal = useWorkbench((s) => s.setGoal)
   const scaffold = useWorkbench((s) => s.scaffold)
   const decide = useWorkbench((s) => s.decide)
+  const promote = useWorkbench((s) => s.promote)
+  const focusId = useWorkbench((s) => s.focusId)
   const note = useWorkbench((s) => s.note)
 
   const judge = (candidate: Candidate, status: 'accepted' | 'rejected') => {
@@ -325,7 +328,20 @@ function Board() {
     })
   }
 
+  const designFrom = async (candidate: Candidate) => {
+    await promote(candidate.id)
+    note({
+      actor: 'human',
+      tool: 'set_focus_molecule',
+      detail: candidate.properties.canonicalSmiles,
+      ok: true,
+    })
+  }
+
   const pendingCount = candidates.filter((c) => c.status === 'pending').length
+  // Diversity over what survived: rejected ideas should not flatter the number.
+  const alive = candidates.filter((c) => c.status !== 'rejected')
+  const spread = diversity(alive.map((c) => c.fp))
 
   return (
     <section className="panel">
@@ -340,6 +356,14 @@ function Board() {
         <p className="hint">
           {pendingCount} proposal{pendingCount > 1 ? 's' : ''} waiting on you. Nothing
           becomes the focus molecule until you accept it.
+        </p>
+      )}
+      {spread !== null && (
+        <p className="hint">
+          Board diversity {spread} &mdash;{' '}
+          {spread < 0.3
+            ? 'these are variations on one idea, not separate ideas.'
+            : 'a genuine spread of chemistry.'}
         </p>
       )}
       {candidates.length === 0 && (
@@ -369,6 +393,12 @@ function Board() {
                 }
                 tone={candidate.rules.passes ? 'ok' : 'bad'}
               />
+              {candidate.similarityToParent !== null && (
+                <Badge
+                  label={`${band(candidate.similarityToParent)} ${candidate.similarityToParent}`}
+                  tone={candidate.similarityToParent >= 0.35 ? 'ok' : 'wait'}
+                />
+              )}
               {candidate.scaffoldOk !== null && scaffold && (
                 <Badge
                   label={
@@ -405,9 +435,65 @@ function Board() {
                 </button>
               </div>
             )}
+            {candidate.status === 'accepted' && (
+              <div className="decide">
+                <button
+                  disabled={focusId === candidate.id}
+                  onClick={() => void designFrom(candidate)}
+                >
+                  {focusId === candidate.id ? 'Current focus' : 'Design from this'}
+                </button>
+              </div>
+            )}
           </article>
         ))}
       </div>
+    </section>
+  )
+}
+
+/**
+ * The design path. Candidates hang off the candidate they were designed from,
+ * so what looks like a flat board is actually a tree, and the route that got
+ * you here is visible.
+ */
+function Lineage() {
+  const candidates = useWorkbench((s) => s.candidates)
+  const focusId = useWorkbench((s) => s.focusId)
+  const focus = useWorkbench((s) => s.focus)
+
+  if (candidates.length === 0) return null
+
+  const childrenOf = (parentId: string | null) =>
+    candidates.filter((c) => c.parentId === parentId).sort((a, b) => a.createdAt - b.createdAt)
+
+  const render = (parentId: string | null, depth: number): React.ReactNode[] =>
+    childrenOf(parentId).flatMap((candidate) => [
+      <li
+        key={candidate.id}
+        className={'tree__node tree__node--' + candidate.status}
+        style={{ paddingLeft: depth * 14 }}
+      >
+        <span className="tree__mark">{focusId === candidate.id ? '◉' : '└'}</span>
+        <code>{candidate.properties.canonicalSmiles}</code>
+        <span className="tree__meta">
+          logP {candidate.properties.logP} &middot; logS {candidate.properties.logS}
+        </span>
+      </li>,
+      ...render(candidate.id, depth + 1),
+    ])
+
+  return (
+    <section className="panel">
+      <h2>Design path</h2>
+      <ul className="tree">
+        <li className="tree__node tree__node--root">
+          <span className="tree__mark">{focusId === null ? '◉' : '○'}</span>
+          <code>{focus?.properties.canonicalSmiles ?? 'starting molecule'}</code>
+          <span className="tree__meta">start</span>
+        </li>
+        {render(null, 1)}
+      </ul>
     </section>
   )
 }
@@ -470,7 +556,10 @@ export default function App() {
             <ScaffoldPanel />
           </div>
           <Board />
-          <CallLog />
+          <div className="column">
+            <Lineage />
+            <CallLog />
+          </div>
         </main>
       )}
     </div>

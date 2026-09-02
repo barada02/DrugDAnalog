@@ -468,7 +468,7 @@ const TOOLS: ToolDescriptor[] = [
         )
       }
 
-      const molecule = await store().setFocus(candidate.smiles)
+      const molecule = await store().promote(candidate.id)
       store().note({
         actor: 'agent',
         tool: 'set_focus_molecule',
