@@ -8,6 +8,10 @@ import type { Match } from '../chem/substructure'
 import { fingerprint, tanimoto } from '../chem/similarity'
 import type { Fingerprint } from '../chem/similarity'
 import { clear as clearSaved, load, save, toSeed } from './persist'
+import { profile } from '../chem/profile'
+import type { Profile } from '../chem/profile'
+import { checkConstraints } from '../chem/constraints'
+import type { Constraint, ConstraintReport } from '../chem/constraints'
 
 /**
  * The part of the molecule the human has told everyone to leave alone.
@@ -37,6 +41,9 @@ export type Candidate = {
   fp: Fingerprint
   /** Tanimoto against the parent. Low means the agent changed more than it said. */
   similarityToParent: number | null
+  profile: Profile
+  /** Scored against the human's stated constraints, empty when none are set. */
+  constraints: ConstraintReport
   prediction: Prediction | null
   scorecard: ScoreRow[]
   /** null when no scaffold was pinned, so "not checked" never reads as "failed". */
@@ -67,6 +74,8 @@ export type Molecule = {
   svg: string
   scaffoldMatch: Match | null
   fp: Fingerprint
+  profile: Profile
+  constraints: ConstraintReport
 }
 
 type WorkbenchState = {
@@ -74,6 +83,7 @@ type WorkbenchState = {
   rdkitError: string | null
   goal: string
   scaffold: Scaffold | null
+  constraints: Constraint[]
   focus: Molecule | null
   /**
    * Which candidate the focus molecule is, when it is one. Null when the human
@@ -89,6 +99,7 @@ type WorkbenchActions = {
   setRdkitStatus: (status: WorkbenchState['rdkitStatus'], error?: string) => void
   setGoal: (goal: string) => void
   setScaffold: (scaffold: Scaffold | null) => Promise<void>
+  setConstraints: (constraints: Constraint[]) => void
   setFocus: (smiles: string, candidateId?: string | null) => Promise<Molecule>
   addCandidate: (input: {
     smiles: string
@@ -129,6 +140,7 @@ function score(prediction: Prediction | null | undefined, actual: Properties): S
 export async function buildMolecule(
   smiles: string,
   scaffold: Scaffold | null,
+  constraints: Constraint[] = [],
 ): Promise<Molecule> {
   const properties = await computeProperties(smiles)
   const scaffoldMatch = scaffold ? await matchPattern(smiles, scaffold.smarts) : null
@@ -137,7 +149,15 @@ export async function buildMolecule(
     scaffoldMatch?.matched ? { atoms: scaffoldMatch.atoms, bonds: scaffoldMatch.bonds } : {},
   )
   const fp = await fingerprint(smiles)
-  return { properties, rules: assess(properties), svg, scaffoldMatch, fp }
+  return {
+    properties,
+    rules: assess(properties),
+    svg,
+    scaffoldMatch,
+    fp,
+    profile: await profile(smiles),
+    constraints: checkConstraints(properties, constraints),
+  }
 }
 
 /**
@@ -150,6 +170,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   rdkitError: null,
   goal: '',
   scaffold: null,
+  constraints: [],
   focus: null,
   focusId: null,
   candidates: [],
@@ -168,13 +189,15 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   setScaffold: async (scaffold) => {
     const { focus, candidates } = get()
     const [nextFocus, nextCandidates] = await Promise.all([
-      focus ? buildMolecule(focus.properties.canonicalSmiles, scaffold) : null,
+      focus ? buildMolecule(focus.properties.canonicalSmiles, scaffold, get().constraints) : null,
       Promise.all(
         candidates.map(async (candidate) => {
-          const molecule = await buildMolecule(candidate.smiles, scaffold)
+          const molecule = await buildMolecule(candidate.smiles, scaffold, get().constraints)
           return {
             ...candidate,
             svg: molecule.svg,
+            profile: molecule.profile,
+            constraints: molecule.constraints,
             scaffoldOk: scaffold ? (molecule.scaffoldMatch?.matched ?? false) : null,
           }
         }),
@@ -183,15 +206,29 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
     set({ scaffold, candidates: nextCandidates, ...(nextFocus ? { focus: nextFocus } : {}) })
   },
 
+  setConstraints: (constraints) =>
+    set((state) => ({
+      constraints,
+      focus: state.focus && {
+        ...state.focus,
+        constraints: checkConstraints(state.focus.properties, constraints),
+      },
+      candidates: state.candidates.map((c) => ({
+        ...c,
+        constraints: checkConstraints(c.properties, constraints),
+      })),
+    })),
+
   setFocus: async (smiles, candidateId = null) => {
-    const molecule = await buildMolecule(smiles, get().scaffold)
+    const molecule = await buildMolecule(smiles, get().scaffold, get().constraints)
     set({ focus: molecule, focusId: candidateId })
     return molecule
   },
 
   addCandidate: async ({ smiles, rationale = '', prediction = null, source }) => {
     const { scaffold, focus, focusId } = get()
-    const { properties, rules, svg, scaffoldMatch, fp } = await buildMolecule(smiles, scaffold)
+    const { properties, rules, svg, scaffoldMatch, fp, profile: prof, constraints } =
+      await buildMolecule(smiles, scaffold, get().constraints)
     const candidate: Candidate = {
       id: id(),
       smiles,
@@ -204,6 +241,8 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       parentId: focusId,
       fp,
       similarityToParent: focus ? tanimoto(fp, focus.fp) : null,
+      profile: prof,
+      constraints,
       prediction,
       scorecard: score(prediction, properties),
       scaffoldOk: scaffold ? (scaffoldMatch?.matched ?? false) : null,
@@ -248,10 +287,8 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
     const rebuilt: Candidate[] = []
     for (const saved of ordered) {
       try {
-        const { properties, rules, svg, scaffoldMatch, fp } = await buildMolecule(
-          saved.smiles,
-          scaffold,
-        )
+        const { properties, rules, svg, scaffoldMatch, fp, profile: prof, constraints } =
+          await buildMolecule(saved.smiles, scaffold, seed.constraints ?? [])
         const parent = rebuilt.find((c) => c.id === saved.parentId)
         rebuilt.push({
           ...saved,
@@ -259,6 +296,8 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
           rules,
           svg,
           fp,
+          profile: prof,
+          constraints,
           parentSmiles: parent?.properties.canonicalSmiles ?? null,
           similarityToParent: parent ? tanimoto(fp, parent.fp) : null,
           scorecard: score(saved.prediction, properties),
@@ -270,10 +309,13 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       }
     }
 
-    const focus = seed.focusSmiles ? await buildMolecule(seed.focusSmiles, scaffold) : null
+    const focus = seed.focusSmiles
+      ? await buildMolecule(seed.focusSmiles, scaffold, seed.constraints ?? [])
+      : null
     set({
       goal: seed.goal,
       scaffold,
+      constraints: seed.constraints ?? [],
       focus,
       focusId: seed.focusId,
       candidates: [...rebuilt].reverse(),
@@ -283,7 +325,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   reset: () => {
     clearSaved()
-    set({ goal: '', scaffold: null, focus: null, focusId: null, candidates: [], log: [] })
+    set({ goal: '', scaffold: null, constraints: [], focus: null, focusId: null, candidates: [], log: [] })
   },
 }))
 
@@ -296,6 +338,7 @@ useWorkbench.subscribe((state, previous) => {
     state.candidates === previous.candidates &&
     state.goal === previous.goal &&
     state.scaffold === previous.scaffold &&
+    state.constraints === previous.constraints &&
     state.focus === previous.focus
   ) {
     return
@@ -304,6 +347,7 @@ useWorkbench.subscribe((state, previous) => {
     toSeed({
       goal: state.goal,
       scaffold: state.scaffold,
+      constraints: state.constraints,
       focusSmiles: state.focus?.properties.canonicalSmiles ?? null,
       focusId: state.focusId,
       candidates: state.candidates,
