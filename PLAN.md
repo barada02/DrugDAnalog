@@ -623,10 +623,44 @@ compute.
 
 # Stretch — 3D
 
-Opt-in only, and only after Phase 5. RDKit's minimal build cannot generate 3D
-coordinates, so they have to come over the network, which breaks the
-everything-stays-in-your-browser promise. That trade has to be a button the user presses
-knowingly, not a default.
+**Done.** Built early, at the user's request, ahead of the Phase 5 polish.
+
+RDKit's minimal build cannot generate conformers -- re-verified, every z is exactly
+zero even forcing `set_new_coords(true)` -- so coordinates come over the network. The
+trade is fenced rather than hidden:
+
+- A human clicks, per molecule. There is no automatic fetch anywhere.
+- The warning naming the service appears **before** the click, not after.
+- **No tool can trigger it.** `get_3d_shape` reads what was already fetched and, when
+  nothing has been, explains that this is a human decision and says not to guess.
+- Conformers are cached for the session but never persisted. A restored board rebuilds
+  from SMILES alone, so reopening the app never silently replays a network result.
+
+**Source: CACTUS first, PubChem second.** Both verified to send
+`Access-Control-Allow-Origin`, without which a browser could not call them at all.
+CACTUS builds coordinates for molecules that exist nowhere; PubChem answers the same
+structure with `PUGREST.Unimplemented -- Cannot (yet) generate 3D coordinates for
+structures without an existing CID`. Agent-designed analogs are by definition not in
+a database, so CACTUS is the only source that serves the actual use case. A flat
+record is rejected rather than shown as 3D.
+
+**Shape descriptors are what stop this being decoration.** Principal moments of
+inertia answer rod / disc / sphere -- the one question 2D cannot. Closed-form
+eigenvalues of the symmetric 3x3 inertia tensor, validated against known geometries:
+
+| molecule | NPR1 | NPR2 | verdict |
+|---|---|---|---|
+| benzene | 0.500 | 0.500 | disc corner, exactly |
+| but-2-yne | 0.043 | 1.000 | rod corner |
+| n-decane | 0.032 | 0.985 | rod |
+| adamantane | 1.000 | 1.000 | sphere corner, exactly |
+| neopentane | 1.000 | 1.000 | sphere corner, exactly |
+
+The maths is exact; the input is one conformer out of many. Every surface that reports
+a shape says so.
+
+**Cost control.** 3Dmol is 538 KB and loads only on opt-in, served from `public/vendor`
+by script tag like RDKit. The main bundle grew 7 KB, not 545.
 
 ---
 

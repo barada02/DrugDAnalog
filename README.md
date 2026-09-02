@@ -60,6 +60,13 @@ phenol, benzene, primary amine, or your own SMARTS) and it must survive every
 proposal. The match is shaded on the depiction, and any candidate that lost it is
 flagged in red. Pinning is retroactive: the whole board is re-checked.
 
+**3D structure, opt-in** — RDKit cannot generate conformers in the browser, so
+coordinates are fetched from NCI CACTUS (falling back to PubChem). This is the only
+network call the app makes, it needs a human click per molecule, the warning appears
+before the click, and no agent tool can trigger it. Comes with principal-moment shape
+analysis: rod-like, disc-like or sphere-like, which is the one question 2D cannot
+answer.
+
 **The design board**
 - Candidate cards with structure, properties, rule verdicts and scaffold status
 - A **prediction scorecard**: the agent states its expected logP *before* computing,
@@ -125,7 +132,7 @@ that, and there is a real loading screen for it.
 
 ## The tool surface
 
-Six tools, all imperative. [PLAN.md](PLAN.md) explains why we rejected the
+Ten tools, all imperative. [PLAN.md](PLAN.md) explains why we rejected the
 declarative API.
 
 | Tool | What it does |
@@ -135,6 +142,9 @@ declarative API.
 | `check_substructure` | Does this molecule still contain that group? Lets an agent screen its own ideas before proposing |
 | `propose_candidate` | Adds a card and returns the measured properties, the scaffold verdict, and the agent's prediction error |
 | `get_computable_limits` | What this app refuses to guess, and why |
+| `analyse_structure` | Names the functional groups present and flags reactive or assay-interfering ones |
+| `suggest_bioisosteres` | Known replacements for the groups this molecule actually has |
+| `get_3d_shape` | Rod, disc or sphere from a real conformer — **read-only, cannot cause a network call** |
 | `set_focus_molecule` | Promote a candidate — **refuses anything the human has not accepted** |
 
 Two details that carry the whole design:
