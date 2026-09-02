@@ -545,9 +545,10 @@ asking "what could replace this acid" returns real options with real numbers.
 - Polish: loading, empty states, error states, mobile-tolerable layout
 - Deploy to a static host and confirm it works in ChatGPT's in-app browser, which is how
   it'll be judged
-- **Replace the root `readme.md`.** It's currently the Gremlin WebMCP sandbox write-up,
-  which is confusing for anyone landing on this repo. Move it to `docs/webmcp-notes.md`
-  and write a real README for Analog.
+- ~~Replace the root `readme.md`.~~ **Done early** — it was the Gremlin sandbox
+  write-up and was actively confusing during development. Moved to
+  `docs/webmcp-notes.md` with a header saying what it is, and a real README written
+  for Analog.
 - Demo video, under three minutes, with audio. Lead with the scaffold catch.
 - Submission text: why WebMCP fits, what humans and agents can now do together that was
   hard before, how we implemented it

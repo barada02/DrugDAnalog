@@ -1,7 +1,8 @@
 # Analog — a molecule design workbench (WebMCP Challenge)
 
-> Project spec. Developed separately from this repo — this repo is the WebMCP
-> tryout/learning sandbox (see [readme.md](readme.md) for the API reference and gotchas).
+> **Background, not specification.** This is the original concept note. The app is
+> now built in this repo; where this document and [PLAN.md](PLAN.md) disagree, the
+> plan wins. WebMCP API notes live in [docs/webmcp-notes.md](docs/webmcp-notes.md).
 
 **Working name:** *Analog* — in chemistry, an analog is a modified version of a
 molecule, which is exactly what the app produces.
@@ -322,7 +323,8 @@ From the challenge requirements:
 - WebMCP is `SecureContext`-only — `https://` or `http://localhost`, never `file://`
 - It is **`document.modelContext`**, not `navigator.modelContext` (deprecated since Chromium 150)
 
-Full API notes, both API styles, and the gotcha list are in [readme.md](readme.md).
+Full API notes, both API styles, and the gotcha list are in
+[docs/webmcp-notes.md](docs/webmcp-notes.md).
 
 ## 16. Open questions
 

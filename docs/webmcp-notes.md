@@ -1,3 +1,17 @@
+> **Reference document — this is not Analog.**
+>
+> This is the write-up from *Gremlin*, a separate throwaway project built purely to
+> learn the WebMCP browser API. It is kept because its API reference, both API
+> styles, and especially its gotcha list are the most accurate WebMCP notes we have,
+> and Analog is built on top of what it teaches.
+>
+> **Nothing here describes the app in this repo.** For that, see
+> [../README.md](../README.md). For the build plan, see [../PLAN.md](../PLAN.md).
+>
+> Analog uses the imperative API only, and [PLAN.md](../PLAN.md) explains why.
+
+---
+
 # Gremlin — a WebMCP learning project
 
 A deliberately obnoxious virtual pet, built twice, to learn the two halves of the
