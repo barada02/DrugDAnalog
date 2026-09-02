@@ -1,6 +1,8 @@
 import { canonicalize, computeProperties } from '../chem/properties'
 import { MEASURES, NOT_COMPUTABLE, TIER_ABOUT } from '../chem/measures'
 import { assess } from '../chem/rules'
+import { buildLedger, ledgerNote } from '../chem/ledger'
+import { band, diversity, tanimoto } from '../chem/similarity'
 import { InvalidSmartsError, InvalidSmilesError } from '../chem/rdkit'
 import { matchPattern } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
@@ -203,9 +205,14 @@ const TOOLS: ToolDescriptor[] = [
           accepted: byStatus('accepted'),
           rejected: byStatus('rejected'),
         },
+        predictionAccuracy: { ...buildLedger(candidates), advice: ledgerNote(buildLedger(candidates)) },
+        boardDiversity: diversity(
+          candidates.filter((c) => c.status !== 'rejected').map((c) => c.fp),
+        ),
         note:
           'Only the human can move a candidate out of `pending`. Do not treat a pending ' +
-          'candidate as approved.',
+          'candidate as approved. `boardDiversity` near 0 means you are proposing ' +
+          'variations on one idea rather than distinct ideas.',
       })
     }),
   },
@@ -374,9 +381,23 @@ const TOOLS: ToolDescriptor[] = [
           ok: candidate.rules.passes && candidate.scaffoldOk !== false,
         })
 
+        const drift =
+          candidate.similarityToParent === null
+            ? null
+            : {
+                tanimotoToParent: candidate.similarityToParent,
+                band: band(candidate.similarityToParent),
+                message:
+                  candidate.similarityToParent < 0.35
+                    ? 'This shares little structure with the molecule it came from. If you ' +
+                      'described it as a small modification, it is not one.'
+                    : 'A recognisable analog of the parent molecule.',
+              }
+
         return ok({
           id: candidate.id,
           status: candidate.status,
+          similarity: drift,
           measured: describe(candidate.properties),
           rules: candidate.rules,
           scaffold,
@@ -391,6 +412,82 @@ const TOOLS: ToolDescriptor[] = [
         })
       },
     ),
+  },
+
+  {
+    name: 'compare_molecules',
+    description:
+      'Put candidates side by side in one property table, so you can answer which has ' +
+      'the best balance without calling get_molecule_properties once per molecule. Pass ' +
+      'candidate ids from get_workbench_state, or omit them to compare everything on the ' +
+      'board that has not been rejected. Also returns how similar each one is to the ' +
+      'focus molecule and the range across each property.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        candidate_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Candidate ids to compare. Omit to use every candidate that is not rejected.',
+        },
+      },
+    },
+    annotations: { readOnlyHint: true },
+    execute: guarded('compare_molecules', ({ candidate_ids }: { candidate_ids?: string[] }) => {
+      const { candidates, focus } = store()
+      const chosen = candidate_ids?.length
+        ? candidate_ids
+            .map((wanted) => candidates.find((c) => c.id === wanted))
+            .filter((c): c is Candidate => c !== undefined)
+        : candidates.filter((c) => c.status !== 'rejected')
+
+      if (chosen.length === 0) {
+        return fail(
+          'NOT_FOUND',
+          candidate_ids?.length
+            ? 'None of those ids are on the board.'
+            : 'There is nothing on the board to compare yet.',
+          'Call get_workbench_state for current candidate ids, or propose candidates first.',
+        )
+      }
+
+      const rows = chosen.map((c) => ({
+        id: c.id,
+        smiles: c.properties.canonicalSmiles,
+        status: c.status,
+        mw: c.properties.mw,
+        logP: c.properties.logP,
+        tpsa: c.properties.tpsa,
+        logS: c.properties.logS,
+        fsp3: c.properties.fsp3,
+        rulesPass: c.rules.passes,
+        violations: c.rules.violations,
+        scaffoldPreserved: c.scaffoldOk,
+        similarityToFocus: focus ? tanimoto(c.fp, focus.fp) : null,
+      }))
+
+      const spread = (key: 'mw' | 'logP' | 'tpsa' | 'logS') => {
+        const values = rows.map((r) => r[key])
+        return { min: Math.min(...values), max: Math.max(...values) }
+      }
+
+      store().note({
+        actor: 'agent',
+        tool: 'compare_molecules',
+        detail: `${rows.length} candidates`,
+        ok: true,
+      })
+
+      return ok({
+        rows,
+        ranges: { mw: spread('mw'), logP: spread('logP'), tpsa: spread('tpsa'), logS: spread('logS') },
+        diversity: diversity(chosen.map((c) => c.fp)),
+        note:
+          'logS is estimated with about one log unit of error, so a difference under 1 ' +
+          'is not a real difference. Do not rank candidates on it alone.',
+      })
+    }),
   },
 
   {

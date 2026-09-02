@@ -4,6 +4,8 @@ import { PRESETS } from './chem/properties'
 import { GROUPS } from './chem/groups'
 import { MEASURES } from './chem/measures'
 import { band, diversity } from './chem/similarity'
+import { buildLedger } from './chem/ledger'
+import { download, toCsv, toSmiles } from './chem/export'
 import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
 import { useWorkbench } from './store/workbench'
@@ -358,6 +360,24 @@ function Board() {
           becomes the focus molecule until you accept it.
         </p>
       )}
+      {candidates.length > 0 && (
+        <div className="presets">
+          <button
+            className="chip"
+            onClick={() => download('analog-board.csv', toCsv(candidates), 'text/csv')}
+          >
+            Export CSV
+          </button>
+          <button
+            className="chip"
+            onClick={() =>
+              download('analog-board.smi', toSmiles(candidates), 'chemical/x-daylight-smiles')
+            }
+          >
+            Export SMILES
+          </button>
+        </div>
+      )}
       {spread !== null && (
         <p className="hint">
           Board diversity {spread} &mdash;{' '}
@@ -448,6 +468,53 @@ function Board() {
           </article>
         ))}
       </div>
+    </section>
+  )
+}
+
+/**
+ * How often the agent's stated expectations survived contact with RDKit.
+ * Produced as a side effect of ordinary work, which is what makes it evidence
+ * rather than opinion.
+ */
+function AccuracyLedger() {
+  const candidates = useWorkbench((s) => s.candidates)
+  const ledger = buildLedger(candidates)
+
+  if (ledger.hitRate === null) {
+    return (
+      <section className="panel">
+        <h2>Prediction ledger</h2>
+        <p className="empty">
+          Nothing predicted yet. Ask your agent to state its expected logP{' '}
+          <em>before</em> computing, and its accuracy gets tracked here.
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="panel">
+      <h2>Prediction ledger</h2>
+      <p className="ledger__headline">
+        <strong>{ledger.within}</strong> of <strong>{ledger.attempts}</strong> predictions
+        landed inside tolerance
+      </p>
+      <table className="ledger">
+        <thead>
+          <tr><th>property</th><th>hit</th><th>mean err</th><th>worst</th></tr>
+        </thead>
+        <tbody>
+          {ledger.fields.map((f) => (
+            <tr key={f.field} className={f.within === f.attempts ? 'ledger__row--right' : ''}>
+              <td>{f.label}</td>
+              <td>{f.within}/{f.attempts}</td>
+              <td>{f.meanAbsError}</td>
+              <td>{f.worst}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   )
 }
@@ -557,6 +624,7 @@ export default function App() {
           </div>
           <Board />
           <div className="column">
+            <AccuracyLedger />
             <Lineage />
             <CallLog />
           </div>
