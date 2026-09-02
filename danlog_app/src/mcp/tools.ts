@@ -1,13 +1,115 @@
-import { computeProperties, lipinski } from '../chem/properties'
+import { canonicalize, computeProperties, lipinski } from '../chem/properties'
+import { InvalidSmartsError, InvalidSmilesError } from '../chem/rdkit'
+import { matchPattern } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
-import type { Prediction } from '../store/workbench'
+import type { Candidate, Prediction } from '../store/workbench'
 import type { ToolDescriptor, ToolResult } from './webmcp'
 
 const ok = (payload: unknown): ToolResult => ({
   content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
 })
 
+type FailCode =
+  | 'INVALID_SMILES'
+  | 'INVALID_SMARTS'
+  | 'DUPLICATE'
+  | 'NOT_FOUND'
+  | 'NEEDS_APPROVAL'
+  | 'NO_SCAFFOLD'
+  | 'RDKIT_NOT_READY'
+
+/**
+ * A failure the caller can actually do something about.
+ *
+ * We do not own the model on the other end of these tools, so the response
+ * text is the only steering we have. Every failure therefore carries a `hint`
+ * saying what to do next, not just a complaint about what went wrong.
+ */
+const fail = (
+  code: FailCode,
+  message: string,
+  hint: string,
+  extra: Record<string, unknown> = {},
+): ToolResult => ({
+  content: [{ type: 'text', text: JSON.stringify({ ok: false, code, message, hint, ...extra }, null, 2) }],
+  isError: true,
+})
+
 const store = () => useWorkbench.getState()
+
+/**
+ * Turns thrown exceptions into structured failures. An agent that receives a
+ * stack trace is stuck; one that receives a code and a hint fixes itself and
+ * retries, which is the entire point.
+ */
+function guarded<A>(
+  tool: string,
+  fn: (args: A) => Promise<ToolResult> | ToolResult,
+): (args: A) => Promise<ToolResult> {
+  return async (args: A) => {
+    if (store().rdkitStatus !== 'ready') {
+      return fail(
+        'RDKIT_NOT_READY',
+        'The chemistry engine has not finished loading in the page yet.',
+        'Wait a moment and call this tool again.',
+      )
+    }
+    try {
+      return await fn(args)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      store().note({ actor: 'agent', tool, detail, ok: false })
+
+      if (error instanceof InvalidSmilesError) {
+        return fail(
+          'INVALID_SMILES',
+          detail,
+          'Check that every ring-opening digit has a matching closing digit, that ' +
+            'brackets are balanced, and that no atom exceeds its normal valence. ' +
+            'Rewrite the SMILES and try again.',
+        )
+      }
+      if (error instanceof InvalidSmartsError) {
+        return fail(
+          'INVALID_SMARTS',
+          detail,
+          'SMARTS is a query language, not a molecule. A carboxylic acid is ' +
+            '[CX3](=[OX1])[OX2H1], for example. Correct the pattern and try again.',
+        )
+      }
+      throw error
+    }
+  }
+}
+
+/** The scaffold verdict, phrased as an instruction rather than a data field. */
+function scaffoldBlock(kept: boolean | null) {
+  const { scaffold } = store()
+  if (!scaffold || kept === null) return null
+  return {
+    label: scaffold.label,
+    required: scaffold.smarts,
+    preserved: kept,
+    message: kept
+      ? `The ${scaffold.label} is intact in this molecule.`
+      : `FAILED THE SCAFFOLD CHECK. The human pinned the ${scaffold.label} and this ` +
+        `molecule does not contain one. The card is flagged on the board. Do not ` +
+        `propose this structure again -- revise it so the ${scaffold.label} survives, ` +
+        `then propose the corrected SMILES.`,
+  }
+}
+
+const summarise = (c: Candidate) => ({
+  id: c.id,
+  smiles: c.properties.canonicalSmiles,
+  status: c.status,
+  source: c.source,
+  rationale: c.rationale,
+  properties: c.properties,
+  lipinski: c.lipinski,
+  scaffoldPreserved: c.scaffoldOk,
+  scorecard: c.scorecard,
+})
 
 const SMILES_PARAM = {
   type: 'string',
@@ -18,57 +120,136 @@ const TOOLS: ToolDescriptor[] = [
   {
     name: 'get_workbench_state',
     description:
-      'Read the whole workbench: the design goal, the focus molecule with its computed ' +
-      'properties, and every candidate on the board with its Lipinski verdict and ' +
-      'prediction scorecard. Call this before proposing anything, and again after, because ' +
-      'the human changes the board while you work.',
+      'Read the whole workbench: the design goal, the group the human pinned to be ' +
+      'preserved, the focus molecule with its computed properties, and every candidate ' +
+      'grouped by whether the human has accepted it, rejected it, or not decided yet. ' +
+      'Call this before proposing anything, and again after, because the human changes ' +
+      'the board while you work.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
-    execute: () => {
-      const { goal, focus, candidates } = store()
+    execute: guarded('get_workbench_state', () => {
+      const { goal, scaffold, focus, candidates } = store()
+      const byStatus = (status: Candidate['status']) =>
+        candidates.filter((c) => c.status === status).map(summarise)
+
       return ok({
         goal: goal || null,
-        focus: focus && { ...focus.properties, lipinski: focus.lipinski },
-        candidates: candidates.map((c) => ({
-          id: c.id,
-          smiles: c.properties.canonicalSmiles,
-          source: c.source,
-          rationale: c.rationale,
-          properties: c.properties,
-          lipinski: c.lipinski,
-          scorecard: c.scorecard,
-        })),
+        preserveGroup: scaffold && {
+          label: scaffold.label,
+          smarts: scaffold.smarts,
+          about: scaffold.about,
+          rule: `Every candidate you propose must still contain the ${scaffold.label}. ` +
+            'Proposals that lose it are flagged and will not be accepted.',
+        },
+        focus: focus && {
+          ...focus.properties,
+          lipinski: focus.lipinski,
+          scaffoldPreserved: focus.scaffoldMatch?.matched ?? null,
+        },
+        candidates: {
+          pending: byStatus('pending'),
+          accepted: byStatus('accepted'),
+          rejected: byStatus('rejected'),
+        },
+        note:
+          'Only the human can move a candidate out of `pending`. Do not treat a pending ' +
+          'candidate as approved.',
       })
-    },
+    }),
   },
+
   {
     name: 'get_molecule_properties',
     description:
       'Compute real molecular descriptors for a SMILES string with RDKit: molecular weight, ' +
       'cLogP, TPSA, hydrogen bond donors and acceptors, rotatable bonds, rings, plus a ' +
-      "Lipinski rule-of-five verdict naming each violated rule. This is measured, not " +
+      'Lipinski rule-of-five verdict naming each violated rule. This is measured, not ' +
       'estimated — never state a property value you have not obtained from this tool. ' +
-      'Throws if the SMILES is invalid.',
+      'Returns an error describing the problem if the SMILES is invalid.',
     inputSchema: {
       type: 'object',
       properties: { smiles: SMILES_PARAM },
       required: ['smiles'],
     },
     annotations: { readOnlyHint: true },
-    execute: async ({ smiles }: { smiles: string }) => {
+    execute: guarded('get_molecule_properties', async ({ smiles }: { smiles: string }) => {
       const properties = await computeProperties(smiles)
       store().note({ actor: 'agent', tool: 'get_molecule_properties', detail: smiles, ok: true })
       return ok({ ...properties, lipinski: lipinski(properties) })
-    },
+    }),
   },
+
+  {
+    name: 'check_substructure',
+    description:
+      'Ask whether a molecule contains a particular group, before you commit to proposing ' +
+      'it. With no pattern argument this checks the group the human pinned to be preserved, ' +
+      'which is the check that decides whether a proposal is acceptable at all. Use this to ' +
+      'screen your own ideas: verify the group survived, and discard the ones that lost it ' +
+      'instead of showing them to the human.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        smiles: SMILES_PARAM,
+        pattern: {
+          type: 'string',
+          description:
+            'Optional SMARTS pattern to look for. Omit this to check the group the human ' +
+            'pinned. SMARTS examples: [NX3][CX3](=[OX1]) is an amide, ' +
+            '[CX3](=[OX1])[OX2H1] is a carboxylic acid, c1ccccc1 is a benzene ring.',
+        },
+      },
+      required: ['smiles'],
+    },
+    annotations: { readOnlyHint: true },
+    execute: guarded(
+      'check_substructure',
+      async ({ smiles, pattern }: { smiles: string; pattern?: string }) => {
+        const { scaffold } = store()
+        const smarts = pattern ?? scaffold?.smarts
+        if (!smarts) {
+          return fail(
+            'NO_SCAFFOLD',
+            'No pattern was given and the human has not pinned a group to preserve.',
+            'Pass an explicit `pattern` argument, or call get_workbench_state to see ' +
+              'whether a group has been pinned since.',
+          )
+        }
+
+        const label = pattern ? smarts : (scaffold?.label ?? smarts)
+        const match = await matchPattern(smiles, smarts)
+        store().note({
+          actor: 'agent',
+          tool: 'check_substructure',
+          detail: `${label} in ${smiles}`,
+          ok: match.matched,
+        })
+
+        return ok({
+          smiles,
+          pattern: smarts,
+          label,
+          matched: match.matched,
+          occurrences: match.count,
+          atoms: match.atoms,
+          message: match.matched
+            ? `Found the ${label}${match.count > 1 ? ` (${match.count} times)` : ''}.`
+            : `This molecule does NOT contain the ${label}. If the design requires it, ` +
+              'revise the structure before proposing it.',
+        })
+      },
+    ),
+  },
+
   {
     name: 'propose_candidate',
     description:
       'Add a candidate analog to the design board and get its real computed properties back. ' +
       'State your predicted mw, logP and tpsa first: the tool scores your prediction against ' +
       'what RDKit actually measures and returns the error on each. Use that feedback to ' +
-      'correct yourself before proposing the next analog. The candidate lands as a pending ' +
-      'card — the human decides what is kept.',
+      'correct yourself before proposing the next analog. If the human pinned a group to ' +
+      'preserve, the response also tells you whether this molecule still contains it. The ' +
+      'candidate lands as PENDING — only the human can accept it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -85,43 +266,140 @@ const TOOLS: ToolDescriptor[] = [
       },
       required: ['smiles', 'rationale'],
     },
-    execute: async (args: {
-      smiles: string
-      rationale: string
-      predicted_mw?: number
-      predicted_logp?: number
-      predicted_tpsa?: number
-    }) => {
-      const prediction: Prediction = {}
-      if (typeof args.predicted_mw === 'number') prediction.mw = args.predicted_mw
-      if (typeof args.predicted_logp === 'number') prediction.logP = args.predicted_logp
-      if (typeof args.predicted_tpsa === 'number') prediction.tpsa = args.predicted_tpsa
+    execute: guarded(
+      'propose_candidate',
+      async (args: {
+        smiles: string
+        rationale: string
+        predicted_mw?: number
+        predicted_logp?: number
+        predicted_tpsa?: number
+      }) => {
+        // Canonicalise first: it validates the SMILES and gives us the only
+        // reliable basis for saying two proposals are the same molecule.
+        const canonical = await canonicalize(args.smiles)
 
-      const candidate = await store().addCandidate({
-        smiles: args.smiles,
-        rationale: args.rationale,
-        prediction: Object.keys(prediction).length ? prediction : null,
-        source: 'agent',
-      })
+        const { candidates, focus } = store()
+        const clash = candidates.find((c) => c.properties.canonicalSmiles === canonical)
+        if (clash) {
+          return fail(
+            'DUPLICATE',
+            `That molecule is already on the board as candidate ${clash.id} (${clash.status}).`,
+            'Propose a structurally different analog. Call get_workbench_state to see ' +
+              'what has already been tried.',
+            { existingId: clash.id, existingStatus: clash.status, smiles: canonical },
+          )
+        }
+        if (focus && focus.properties.canonicalSmiles === canonical) {
+          return fail(
+            'DUPLICATE',
+            'That is the focus molecule itself, unchanged.',
+            'Propose a modified structure, not the starting molecule.',
+            { smiles: canonical },
+          )
+        }
 
+        const prediction: Prediction = {}
+        if (typeof args.predicted_mw === 'number') prediction.mw = args.predicted_mw
+        if (typeof args.predicted_logp === 'number') prediction.logP = args.predicted_logp
+        if (typeof args.predicted_tpsa === 'number') prediction.tpsa = args.predicted_tpsa
+
+        const candidate = await store().addCandidate({
+          smiles: args.smiles,
+          rationale: args.rationale,
+          prediction: Object.keys(prediction).length ? prediction : null,
+          source: 'agent',
+        })
+
+        const scaffold = scaffoldBlock(candidate.scaffoldOk)
+        store().note({
+          actor: 'agent',
+          tool: 'propose_candidate',
+          detail: candidate.properties.canonicalSmiles,
+          ok: candidate.lipinski.passes && candidate.scaffoldOk !== false,
+        })
+
+        return ok({
+          id: candidate.id,
+          status: candidate.status,
+          measured: candidate.properties,
+          lipinski: candidate.lipinski,
+          scaffold,
+          scorecard: candidate.scorecard,
+          note: candidate.scorecard.length
+            ? 'Compare `predicted` against `actual` above and adjust your next proposal.'
+            : 'You supplied no prediction. Next time include predicted_mw / predicted_logp / ' +
+              'predicted_tpsa so your reasoning can be checked against the measurement.',
+          approval:
+            'This candidate is PENDING. The human decides whether it is accepted. ' +
+            'Do not describe it as approved or selected.',
+        })
+      },
+    ),
+  },
+
+  {
+    name: 'set_focus_molecule',
+    description:
+      'Make a candidate the new focus molecule, so further analogs are designed from it. ' +
+      'This only works on a candidate the human has ACCEPTED. A pending candidate cannot ' +
+      'be promoted no matter how good its numbers are — that decision belongs to the human, ' +
+      'and this tool will refuse.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        candidate_id: {
+          type: 'string',
+          description: 'The id of a candidate on the board, as returned by get_workbench_state.',
+        },
+      },
+      required: ['candidate_id'],
+    },
+    annotations: { destructiveHint: true },
+    execute: guarded('set_focus_molecule', async ({ candidate_id }: { candidate_id: string }) => {
+      const candidate = store().candidates.find((c) => c.id === candidate_id)
+      if (!candidate) {
+        return fail(
+          'NOT_FOUND',
+          `No candidate on the board has the id ${candidate_id}.`,
+          'Call get_workbench_state to get current candidate ids.',
+        )
+      }
+      if (candidate.status === 'rejected') {
+        return fail(
+          'NEEDS_APPROVAL',
+          'The human rejected that candidate, so it cannot become the focus molecule.',
+          'Choose a candidate from the `accepted` group instead, or propose something new.',
+          { candidateId: candidate.id, status: candidate.status },
+        )
+      }
+      if (candidate.status !== 'accepted') {
+        return fail(
+          'NEEDS_APPROVAL',
+          'That candidate is still pending. The human has to accept it before it can ' +
+            'become the focus molecule.',
+          'Leave it on the board and tell the human why you think it is worth accepting. ' +
+            'Do not retry this call until get_workbench_state reports it as accepted.',
+          { candidateId: candidate.id, status: candidate.status },
+        )
+      }
+
+      const molecule = await store().setFocus(candidate.smiles)
       store().note({
         actor: 'agent',
-        tool: 'propose_candidate',
-        detail: candidate.properties.canonicalSmiles,
-        ok: candidate.lipinski.passes,
+        tool: 'set_focus_molecule',
+        detail: molecule.properties.canonicalSmiles,
+        ok: true,
       })
-
       return ok({
-        id: candidate.id,
-        measured: candidate.properties,
-        lipinski: candidate.lipinski,
-        scorecard: candidate.scorecard,
-        note: candidate.scorecard.length
-          ? 'Compare `predicted` against `actual` above and adjust your next proposal.'
-          : 'You supplied no prediction. Next time include predicted_mw / predicted_logp / ' +
-            'predicted_tpsa so your reasoning can be checked against the measurement.',
+        focus: {
+          ...molecule.properties,
+          lipinski: molecule.lipinski,
+          scaffoldPreserved: molecule.scaffoldMatch?.matched ?? null,
+        },
+        message: 'Focus molecule updated. Further analogs should be derived from this structure.',
       })
-    },
+    }),
   },
 ]
 

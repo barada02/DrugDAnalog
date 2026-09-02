@@ -23,6 +23,15 @@ type RawDescriptors = Record<string, number>
 
 const round = (n: number, places = 2) => Number(n.toFixed(places))
 
+/**
+ * The canonical form of a SMILES string. Two spellings of the same molecule
+ * produce the same canonical output, which is what makes equality -- and
+ * therefore duplicate detection -- possible at all.
+ */
+export async function canonicalize(smiles: string): Promise<string> {
+  return withMol(smiles, (mol) => mol.get_smiles())
+}
+
 export async function computeProperties(smiles: string): Promise<Properties> {
   return withMol(smiles, (mol) => {
     const d = JSON.parse(mol.get_descriptors()) as RawDescriptors

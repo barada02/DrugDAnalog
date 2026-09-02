@@ -28,8 +28,16 @@ export type Candidate = {
   scorecard: ScoreRow[]
   /** null when no scaffold was pinned, so "not checked" never reads as "failed". */
   scaffoldOk: boolean | null
+  /**
+   * The approval gate. Agents may only create `pending`; promoting a candidate
+   * to `accepted` is a human act and nothing in the tool surface can do it.
+   */
+  status: CandidateStatus
+  decidedAt: number | null
   createdAt: number
 }
+
+export type CandidateStatus = 'pending' | 'accepted' | 'rejected'
 
 export type LogEntry = {
   id: string
@@ -68,6 +76,7 @@ type WorkbenchActions = {
     prediction?: Prediction | null
     source: 'human' | 'agent'
   }) => Promise<Candidate>
+  decide: (id: string, status: Exclude<CandidateStatus, 'pending'>) => void
   note: (entry: Omit<LogEntry, 'id' | 'at'>) => void
 }
 
@@ -168,11 +177,22 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       prediction,
       scorecard: score(prediction, properties),
       scaffoldOk: scaffold ? (scaffoldMatch?.matched ?? false) : null,
+      // A molecule the human typed in is already approved -- it is theirs.
+      // Anything an agent proposes waits.
+      status: source === 'human' ? 'accepted' : 'pending',
+      decidedAt: source === 'human' ? Date.now() : null,
       createdAt: Date.now(),
     }
     set((state) => ({ candidates: [candidate, ...state.candidates] }))
     return candidate
   },
+
+  decide: (id, status) =>
+    set((state) => ({
+      candidates: state.candidates.map((candidate) =>
+        candidate.id === id ? { ...candidate, status, decidedAt: Date.now() } : candidate,
+      ),
+    })),
 
   note: (entry) =>
     set((state) => ({ log: [{ ...entry, id: id(), at: Date.now() }, ...state.log].slice(0, 100) })),
