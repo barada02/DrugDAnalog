@@ -510,8 +510,27 @@ how the design actually went.
   proposals, mean error 1.4 log units.* Persist it, export it. Nobody else has this, and
   it falls out of work we're already doing.
 
-**Done when:** you can run a full session, close the tab, reopen it, see the design path
-as a tree, and export the whole thing plus the model's accuracy record.
+## Phase 3 status
+
+**Done.** All six pieces.
+
+| Piece | Notes |
+|---|---|
+| Lineage | `parentId` + `focusId`; Design path panel draws the tree. Accept and promote are separate actions. |
+| Comparison | `compare_molecules` takes an array of ids -- the concrete case declarative WebMCP could not express. |
+| Diversity | Morgan fingerprints, Tanimoto, mean pairwise distance across everything not rejected. |
+| Memory | localStorage, seed-only, recomputed on load. 49x smaller than storing full state. |
+| Export | CSV and SMILES. |
+| The accuracy ledger | Per-property hit rate, mean error, worst miss and signed bias, returned on every board read. |
+
+Tools now: `get_workbench_state`, `get_molecule_properties`, `check_substructure`,
+`propose_candidate`, `compare_molecules`, `get_computable_limits`,
+`set_focus_molecule`.
+
+**Worth remembering:** ranking the ledger's weakest property has to normalise by that
+property's tolerance. Raw error magnitudes are not comparable across g/mol, log units
+and square angstroms -- the first version called TPSA the weakest at 3.6 when TPSA had
+scored 1 for 1 and logP had missed 3 of 4 at 0.98.
 
 ---
 
