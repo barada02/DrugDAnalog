@@ -1,7 +1,10 @@
-import { canonicalize, computeProperties, lipinski } from '../chem/properties'
+import { canonicalize, computeProperties } from '../chem/properties'
+import { MEASURES, NOT_COMPUTABLE, TIER_ABOUT } from '../chem/measures'
+import { assess } from '../chem/rules'
 import { InvalidSmartsError, InvalidSmilesError } from '../chem/rdkit'
 import { matchPattern } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
+import type { Properties } from '../chem/properties'
 import type { Candidate, Prediction } from '../store/workbench'
 import type { ToolDescriptor, ToolResult } from './webmcp'
 
@@ -99,6 +102,55 @@ function scaffoldBlock(kept: boolean | null) {
   }
 }
 
+/**
+ * Things worth saying out loud about a structure, regardless of its numbers.
+ */
+function warnings(p: Properties): string[] {
+  const out: string[] = []
+  if (p.undefinedStereocentres > 0) {
+    const n = p.undefinedStereocentres
+    out.push(
+      `This SMILES leaves ${n} stereocentre${n > 1 ? 's' : ''} undefined, so it describes ` +
+        `${2 ** n} different compounds rather than one. Every property below is computed ` +
+        'without stereochemistry. If the design depends on a specific isomer, say which.',
+    )
+  }
+  return out
+}
+
+/**
+ * Every number with its confidence tier attached.
+ *
+ * This is the honesty layer. An agent will otherwise report molecular weight
+ * and estimated solubility with identical certainty, when one is addition and
+ * the other is a regression with a log unit of error. Attaching the tier tells
+ * it what it is allowed to claim.
+ */
+function describe(p: Properties) {
+  const confidence: Record<string, unknown> = {}
+  for (const measure of MEASURES) {
+    confidence[measure.key] = {
+      value: p[measure.key],
+      tier: measure.tier,
+      ...(measure.error === undefined ? {} : { plusMinus: measure.error }),
+      ...(measure.unit === undefined ? {} : { unit: measure.unit }),
+      about: measure.about,
+    }
+  }
+  return {
+    smiles: p.canonicalSmiles,
+    properties: p,
+    confidence,
+    tierMeanings: TIER_ABOUT,
+    rules: assess(p),
+    warnings: warnings(p),
+    note:
+      'Report each value with its tier. An `estimated` value must be quoted with its ' +
+      'error, e.g. "logS about -2.0, plus or minus 1". Never present an estimate as a ' +
+      'measurement.',
+  }
+}
+
 const summarise = (c: Candidate) => ({
   id: c.id,
   smiles: c.properties.canonicalSmiles,
@@ -106,7 +158,7 @@ const summarise = (c: Candidate) => ({
   source: c.source,
   rationale: c.rationale,
   properties: c.properties,
-  lipinski: c.lipinski,
+  rules: c.rules,
   scaffoldPreserved: c.scaffoldOk,
   scorecard: c.scorecard,
 })
@@ -143,7 +195,7 @@ const TOOLS: ToolDescriptor[] = [
         },
         focus: focus && {
           ...focus.properties,
-          lipinski: focus.lipinski,
+          rules: focus.rules,
           scaffoldPreserved: focus.scaffoldMatch?.matched ?? null,
         },
         candidates: {
@@ -161,11 +213,14 @@ const TOOLS: ToolDescriptor[] = [
   {
     name: 'get_molecule_properties',
     description:
-      'Compute real molecular descriptors for a SMILES string with RDKit: molecular weight, ' +
-      'cLogP, TPSA, hydrogen bond donors and acceptors, rotatable bonds, rings, plus a ' +
-      'Lipinski rule-of-five verdict naming each violated rule. This is measured, not ' +
-      'estimated — never state a property value you have not obtained from this tool. ' +
-      'Returns an error describing the problem if the SMILES is invalid.',
+      'Compute real molecular properties for a SMILES string with RDKit: molecular weight, ' +
+      'cLogP, TPSA, hydrogen bond donors and acceptors, rotatable bonds, aromatic rings, ' +
+      'Fsp3, undefined stereocentres, and an estimated aqueous solubility. Also returns ' +
+      'verdicts for Lipinski, Veber, Egan and Pfizer 3/75, each naming the exact clause ' +
+      'that broke. Every value comes back with a confidence tier saying whether it was ' +
+      'counted exactly, computed by an algorithm, or estimated by a regression with a ' +
+      'stated error. Never state a property value you have not obtained from this tool, ' +
+      'and never quote an estimated value without its error.',
     inputSchema: {
       type: 'object',
       properties: { smiles: SMILES_PARAM },
@@ -175,7 +230,7 @@ const TOOLS: ToolDescriptor[] = [
     execute: guarded('get_molecule_properties', async ({ smiles }: { smiles: string }) => {
       const properties = await computeProperties(smiles)
       store().note({ actor: 'agent', tool: 'get_molecule_properties', detail: smiles, ok: true })
-      return ok({ ...properties, lipinski: lipinski(properties) })
+      return ok(describe(properties))
     }),
   },
 
@@ -316,14 +371,14 @@ const TOOLS: ToolDescriptor[] = [
           actor: 'agent',
           tool: 'propose_candidate',
           detail: candidate.properties.canonicalSmiles,
-          ok: candidate.lipinski.passes && candidate.scaffoldOk !== false,
+          ok: candidate.rules.passes && candidate.scaffoldOk !== false,
         })
 
         return ok({
           id: candidate.id,
           status: candidate.status,
-          measured: candidate.properties,
-          lipinski: candidate.lipinski,
+          measured: describe(candidate.properties),
+          rules: candidate.rules,
           scaffold,
           scorecard: candidate.scorecard,
           note: candidate.scorecard.length
@@ -335,6 +390,35 @@ const TOOLS: ToolDescriptor[] = [
             'Do not describe it as approved or selected.',
         })
       },
+    ),
+  },
+
+  {
+    name: 'get_computable_limits',
+    description:
+      'List what this workbench can and cannot compute, and why. Call this before ' +
+      'answering any question about potency, binding affinity, toxicity, pKa or synthesis ' +
+      'routes. These are not available from structure alone, this app will not estimate ' +
+      'them, and you should not either -- say they are unknown instead of producing a ' +
+      'plausible number.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
+    execute: guarded('get_computable_limits', () =>
+      ok({
+        computable: MEASURES.map((m) => ({
+          property: m.key,
+          label: m.label,
+          tier: m.tier,
+          ...(m.error === undefined ? {} : { plusMinus: m.error }),
+          about: m.about,
+        })),
+        tierMeanings: TIER_ABOUT,
+        rulesets: ['Lipinski', 'Veber', 'Egan', 'Pfizer 3/75'],
+        notComputable: NOT_COMPUTABLE,
+        note:
+          'If the human asks for something in notComputable, tell them it cannot be ' +
+          'determined here and say what would be needed. Do not substitute a guess.',
+      }),
     ),
   },
 
@@ -394,7 +478,7 @@ const TOOLS: ToolDescriptor[] = [
       return ok({
         focus: {
           ...molecule.properties,
-          lipinski: molecule.lipinski,
+          rules: molecule.rules,
           scaffoldPreserved: molecule.scaffoldMatch?.matched ?? null,
         },
         message: 'Focus molecule updated. Further analogs should be derived from this structure.',

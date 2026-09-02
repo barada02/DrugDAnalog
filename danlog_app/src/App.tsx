@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getRDKit } from './chem/rdkit'
 import { PRESETS } from './chem/properties'
 import { GROUPS } from './chem/groups'
+import { MEASURES } from './chem/measures'
 import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
 import { useWorkbench } from './store/workbench'
@@ -58,16 +59,62 @@ function Badge({ label, tone }: { label: string; tone: 'ok' | 'wait' | 'bad' }) 
   return <span className={'badge badge--' + tone}>{label}</span>
 }
 
+/**
+ * Driven by MEASURES so the grid and the tool responses can never disagree
+ * about what a number is or how far to trust it.
+ */
 function Properties({ p }: { p: Candidate['properties'] }) {
   return (
     <dl className="props">
-      <div><dt>MW</dt><dd>{p.mw}</dd></div>
-      <div><dt>logP</dt><dd>{p.logP}</dd></div>
-      <div><dt>TPSA</dt><dd>{p.tpsa}</dd></div>
-      <div><dt>HBD</dt><dd>{p.hbd}</dd></div>
-      <div><dt>HBA</dt><dd>{p.hba}</dd></div>
-      <div><dt>RotB</dt><dd>{p.rotatableBonds}</dd></div>
+      {MEASURES.map((m) => (
+        <div key={m.key} className={'props__cell props__cell--' + m.tier} title={m.about}>
+          <dt>{m.label}</dt>
+          <dd>
+            {p[m.key]}
+            {m.error !== undefined && <span className="props__err">&plusmn;{m.error}</span>}
+          </dd>
+        </div>
+      ))}
     </dl>
+  )
+}
+
+/** What the shading on the property grid means. */
+function TierLegend() {
+  return (
+    <p className="legend">
+      <span className="legend__item legend__item--exact">exact</span>
+      <span className="legend__item legend__item--computed">computed</span>
+      <span className="legend__item legend__item--estimated">estimated</span>
+    </p>
+  )
+}
+
+/** Every ruleset, each naming the clause that broke rather than just failing. */
+function Rules({ report }: { report: Candidate['rules'] }) {
+  return (
+    <ul className="rules">
+      {report.rules.map((rule) => (
+        <li key={rule.name} className={rule.passes ? 'rules__ok' : 'rules__bad'} title={rule.about}>
+          <span className="rules__name">{rule.name}</span>
+          <span className="rules__verdict">
+            {rule.passes ? 'pass' : rule.violations.join(', ')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Structural facts that are not numbers, e.g. an ambiguous stereocentre. */
+function Warnings({ p }: { p: Candidate['properties'] }) {
+  if (p.undefinedStereocentres < 1) return null
+  const n = p.undefinedStereocentres
+  return (
+    <p className="warn">
+      {n} undefined stereocentre{n > 1 ? 's' : ''}: this SMILES describes {2 ** n} different
+      compounds, not one. Properties are computed without stereochemistry.
+    </p>
   )
 }
 
@@ -244,11 +291,14 @@ function FocusPanel() {
           )}
           <code className="smiles">{focus.properties.canonicalSmiles}</code>
           <Properties p={focus.properties} />
-          <p className={focus.lipinski.passes ? 'verdict verdict--pass' : 'verdict verdict--fail'}>
-            {focus.lipinski.passes
-              ? 'Passes Lipinski rule of five'
-              : 'Fails Lipinski: ' + focus.lipinski.violations.join(', ')}
+          <TierLegend />
+          <p className="hint">
+            Solubility {focus.properties.logS} log mol/L (about{' '}
+            {focus.properties.solubilityMgPerL} mg/L) &mdash; {focus.properties.solubilityBand}.
+            Estimated, so treat it as a direction of travel, not a measurement.
           </p>
+          <Warnings p={focus.properties} />
+          <Rules report={focus.rules} />
         </>
       )}
     </section>
@@ -312,8 +362,12 @@ function Board() {
               <Badge label={candidate.source} tone={candidate.source === 'agent' ? 'wait' : 'ok'} />
               <Badge label={candidate.status} tone={STATUS_TONE[candidate.status]} />
               <Badge
-                label={candidate.lipinski.passes ? 'Lipinski pass' : 'Lipinski fail'}
-                tone={candidate.lipinski.passes ? 'ok' : 'bad'}
+                label={
+                  candidate.rules.passes
+                    ? 'all rules pass'
+                    : candidate.rules.failed.map((r) => r.name).join(' + ') + ' fail'
+                }
+                tone={candidate.rules.passes ? 'ok' : 'bad'}
               />
               {candidate.scaffoldOk !== null && scaffold && (
                 <Badge
@@ -335,10 +389,11 @@ function Board() {
                 Does not contain the {scaffold.label} this design was supposed to keep.
               </p>
             )}
+            <Warnings p={candidate.properties} />
             <Properties p={candidate.properties} />
             <Scorecard candidate={candidate} />
-            {!candidate.lipinski.passes && (
-              <p className="violations">{candidate.lipinski.violations.join(' / ')}</p>
+            {!candidate.rules.passes && (
+              <p className="violations">{candidate.rules.violations.join(' / ')}</p>
             )}
             {candidate.status === 'pending' && (
               <div className="decide">

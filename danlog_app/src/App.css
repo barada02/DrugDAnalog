@@ -277,3 +277,47 @@ button:disabled:hover { border-color: var(--line); }
    that an idea was turned down and stop re-proposing it. */
 .card--rejected { opacity: 0.45; }
 .card--rejected:hover { opacity: 1; }
+
+/* --- stage 2: confidence tiers and rulesets --- */
+
+/* Nine measures now, so the grid needs room and a smaller cell. */
+.props { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.props div { padding: 6px 8px; }
+.props dd { font-size: 13px; }
+
+/* The left border is the confidence tier. Exact numbers are unmarked because
+   they are the baseline; anything with a border is carrying uncertainty. */
+.props__cell { border-left: 2px solid transparent; }
+.props__cell--computed { border-left-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.props__cell--estimated { border-left-color: var(--wait); }
+
+.props__err { color: var(--muted); font-size: 10px; margin-left: 3px; }
+
+.legend { display: flex; gap: 10px; margin: 8px 0 0; font-size: 10.5px; color: var(--muted); }
+.legend__item { display: flex; align-items: center; gap: 4px; }
+.legend__item::before {
+  content: '';
+  width: 2px;
+  height: 10px;
+  background: transparent;
+  border-left: 2px solid var(--line);
+}
+.legend__item--computed::before { border-left-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.legend__item--estimated::before { border-left-color: var(--wait); }
+
+.rules { list-style: none; margin: 12px 0 0; padding: 0; font-size: 12px; }
+.rules li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.rules li:first-child { border-top: none; }
+.rules__name { color: var(--text); }
+.rules__verdict { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.rules__ok .rules__verdict { color: var(--ok); }
+.rules__bad .rules__name { color: var(--bad); }
+.rules__bad .rules__verdict { color: var(--bad); }
+
+.card .warn { font-size: 11.5px; padding: 7px 9px; }

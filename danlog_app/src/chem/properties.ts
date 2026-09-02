@@ -1,4 +1,5 @@
-import { withMol } from './rdkit'
+import { getRDKit, withMol } from './rdkit'
+import { esol } from './solubility'
 
 /** The subset of RDKit's 43 descriptors the workbench actually reasons about. */
 export type Properties = {
@@ -12,11 +13,18 @@ export type Properties = {
   rotatableBonds: number
   heavyAtoms: number
   rings: number
-}
-
-export type LipinskiResult = {
-  passes: boolean
-  violations: string[]
+  aromaticRings: number
+  /** Fraction of carbons that are sp3, i.e. how three-dimensional it is. */
+  fsp3: number
+  /** ESOL estimate. See solubility.ts for the error bar that goes with it. */
+  logS: number
+  solubilityMgPerL: number
+  solubilityBand: string
+  /**
+   * Stereocentres the SMILES leaves undefined. Anything above zero means the
+   * string describes 2^n compounds rather than one, which agents rarely notice.
+   */
+  undefinedStereocentres: number
 }
 
 type RawDescriptors = Record<string, number>
@@ -32,8 +40,29 @@ export async function canonicalize(smiles: string): Promise<string> {
   return withMol(smiles, (mol) => mol.get_smiles())
 }
 
+/**
+ * ESOL needs the share of heavy atoms that are aromatic, which is not one of
+ * the 43 descriptors. Counting `[a]` matches is the cheapest way to get it.
+ */
+async function aromaticProportion(smiles: string, heavyAtoms: number): Promise<number> {
+  if (heavyAtoms === 0) return 0
+  const rdkit = await getRDKit()
+  let mol = null
+  let query = null
+  try {
+    mol = rdkit.get_mol(smiles)
+    query = rdkit.get_qmol('[a]')
+    if (!mol?.is_valid() || !query?.is_valid()) return 0
+    const matches = JSON.parse(mol.get_substruct_matches(query)) as unknown
+    return (Array.isArray(matches) ? matches.length : 0) / heavyAtoms
+  } finally {
+    mol?.delete()
+    query?.delete()
+  }
+}
+
 export async function computeProperties(smiles: string): Promise<Properties> {
-  return withMol(smiles, (mol) => {
+  const base = await withMol(smiles, (mol) => {
     const d = JSON.parse(mol.get_descriptors()) as RawDescriptors
     return {
       smiles,
@@ -46,21 +75,25 @@ export async function computeProperties(smiles: string): Promise<Properties> {
       rotatableBonds: d.NumRotatableBonds,
       heavyAtoms: d.NumHeavyAtoms,
       rings: d.NumRings,
+      aromaticRings: d.NumAromaticRings,
+      fsp3: round(d.FractionCSP3),
+      undefinedStereocentres: d.NumUnspecifiedAtomStereoCenters,
     }
   })
-}
 
-/**
- * Lipinski's rule of five. Reported with the specific rule named, because
- * "fails Lipinski" is useless to an agent trying to fix it.
- */
-export function lipinski(p: Properties): LipinskiResult {
-  const violations: string[] = []
-  if (p.mw > 500) violations.push(`MW ${p.mw} > 500`)
-  if (p.logP > 5) violations.push(`logP ${p.logP} > 5`)
-  if (p.hbd > 5) violations.push(`HBD ${p.hbd} > 5`)
-  if (p.hba > 10) violations.push(`HBA ${p.hba} > 10`)
-  return { passes: violations.length === 0, violations }
+  const solubility = esol({
+    logP: base.logP,
+    mw: base.mw,
+    rotatableBonds: base.rotatableBonds,
+    aromaticProportion: await aromaticProportion(smiles, base.heavyAtoms),
+  })
+
+  return {
+    ...base,
+    logS: solubility.logS,
+    solubilityMgPerL: solubility.mgPerL,
+    solubilityBand: solubility.band,
+  }
 }
 
 export type RenderOptions = {

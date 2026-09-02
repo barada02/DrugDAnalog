@@ -1,6 +1,8 @@
 import { create } from 'zustand'
-import { computeProperties, lipinski, renderSvg } from '../chem/properties'
-import type { LipinskiResult, Properties } from '../chem/properties'
+import { computeProperties, renderSvg } from '../chem/properties'
+import type { Properties } from '../chem/properties'
+import { assess } from '../chem/rules'
+import type { RuleReport } from '../chem/rules'
 import { matchPattern } from '../chem/substructure'
 import type { Match } from '../chem/substructure'
 
@@ -19,7 +21,7 @@ export type Candidate = {
   id: string
   smiles: string
   properties: Properties
-  lipinski: LipinskiResult
+  rules: RuleReport
   svg: string
   rationale: string
   source: 'human' | 'agent'
@@ -50,7 +52,7 @@ export type LogEntry = {
 
 export type Molecule = {
   properties: Properties
-  lipinski: LipinskiResult
+  rules: RuleReport
   svg: string
   scaffoldMatch: Match | null
 }
@@ -111,7 +113,7 @@ export async function buildMolecule(
     smiles,
     scaffoldMatch?.matched ? { atoms: scaffoldMatch.atoms, bonds: scaffoldMatch.bonds } : {},
   )
-  return { properties, lipinski: lipinski(properties), svg, scaffoldMatch }
+  return { properties, rules: assess(properties), svg, scaffoldMatch }
 }
 
 /**
@@ -164,12 +166,12 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   addCandidate: async ({ smiles, rationale = '', prediction = null, source }) => {
     const scaffold = get().scaffold
-    const { properties, lipinski: rules, svg, scaffoldMatch } = await buildMolecule(smiles, scaffold)
+    const { properties, rules, svg, scaffoldMatch } = await buildMolecule(smiles, scaffold)
     const candidate: Candidate = {
       id: id(),
       smiles,
       properties,
-      lipinski: rules,
+      rules,
       svg,
       rationale,
       source,
