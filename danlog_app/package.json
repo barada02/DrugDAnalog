@@ -8,13 +8,14 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "sync:rdkit": "node scripts/sync-rdkit.mjs",
-    "postinstall": "node scripts/sync-rdkit.mjs",
-    "predev": "node scripts/sync-rdkit.mjs",
-    "prebuild": "node scripts/sync-rdkit.mjs"
+    "sync:vendor": "node scripts/sync-vendor.mjs",
+    "postinstall": "node scripts/sync-vendor.mjs",
+    "predev": "node scripts/sync-vendor.mjs",
+    "prebuild": "node scripts/sync-vendor.mjs"
   },
   "dependencies": {
     "@rdkit/rdkit": "^2025.3.4-1.0.0",
+    "3dmol": "^2.5.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zustand": "^5.0.15"
