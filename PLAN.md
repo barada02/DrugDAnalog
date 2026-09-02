@@ -351,6 +351,42 @@ Two APIs, each used where it actually fits.
 
 ---
 
+## Decision: the tool surface stays imperative
+
+Checked against the API reference before deciding. Declarative WebMCP derives its
+JSON Schema from form markup, which caps what a tool can accept at what a form can
+express: strings, numbers, checkboxes, and `<option>` lists as enums. No arrays, no
+nested objects, no conditional schemas, and no dynamic tool sets.
+
+**We go all-imperative.** Three reasons:
+
+1. **Our schemas already outgrow forms.** `compare_molecules` takes an array of
+   candidate ids. Constraint boxes are nested objects. Neither is expressible in
+   markup, and both are on the roadmap.
+2. **One code path.** Registration, teardown by `AbortController`, the `guarded`
+   error wrapper, and the call log are all defined once. Mixing APIs doubles every
+   one of those.
+3. **The approval gate does not need it.** The reference sells "omit
+   `toolautosubmit` and a human must press the button" as a free gate. Ours is
+   already stronger: no tool exists that can set a candidate to `accepted`, so the
+   agent cannot approve its own work through any path, form or otherwise.
+
+**What this costs.** IDEA.md §13 claimed "both imperative and declarative APIs" as
+evidence of WebMCP leverage. We are giving that up deliberately. The submission
+write-up should say why — a reasoned rejection of an API demonstrates that we
+understand it better than a token form would.
+
+**What we keep from the declarative side.** Its real advantage is one code path for
+humans and agents so UI and tools cannot drift. We get the same effect by keeping
+all shared logic in the zustand store: `FocusPanel` and `set_focus_molecule` both
+go through `setFocus`, so there is one implementation with two doors.
+
+One rule borrowed from the reference's gotcha list and worth restating: **write
+consequences into descriptions, not just actions.** A tool that says what it will do
+*to the board* steers the agent far better than one that only names its inputs.
+
+---
+
 ## Phase 1 status
 
 | Piece | State |
