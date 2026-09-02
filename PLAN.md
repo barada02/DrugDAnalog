@@ -351,6 +351,20 @@ Two APIs, each used where it actually fits.
 
 ---
 
+## Phase 1 status
+
+| Piece | State |
+|---|---|
+| 1.1 Keep the scaffold | **Done.** Pin panel, six built-in groups plus custom SMARTS, highlighted depictions, retroactive re-checking, kept/lost badges. |
+| 1.2 Errors the agent can act on | **Done.** `guarded` wrapper, code/message/hint failures, duplicate detection on canonical SMILES. |
+| 1.3 The approval gate | **Imperative half done.** Status field, accept/reject controls, `set_focus_molecule` refusing anything unapproved. |
+| The declarative form | **Not started.** Still the only part of Phase 1 outstanding. |
+
+Tools now registered: `get_workbench_state`, `get_molecule_properties`,
+`check_substructure`, `propose_candidate`, `set_focus_molecule`.
+
+---
+
 ## How we know Phase 1 is done
 
 Four things you can demonstrate:
