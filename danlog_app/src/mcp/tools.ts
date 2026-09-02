@@ -5,6 +5,8 @@ import { buildLedger, ledgerNote } from '../chem/ledger'
 import { band, diversity, tanimoto } from '../chem/similarity'
 import { profile, suggestionsFor } from '../chem/profile'
 import { describeConstraint } from '../chem/constraints'
+import { knownConformer, SOURCE_LABEL } from '../chem/threed'
+import { shapeFromSdf } from '../chem/shape'
 import { InvalidSmartsError, InvalidSmilesError } from '../chem/rdkit'
 import { matchPattern } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
@@ -598,6 +600,53 @@ const TOOLS: ToolDescriptor[] = [
         note:
           'logS is estimated with about one log unit of error, so a difference under 1 ' +
           'is not a real difference. Do not rank candidates on it alone.',
+      })
+    }),
+  },
+
+  {
+    name: 'get_3d_shape',
+    description:
+      'Report the three-dimensional shape of a molecule -- rod-like, disc-like or ' +
+      'sphere-like -- from a real conformer, plus its normalised principal moment ratios ' +
+      'and longest span. This is the one thing 2D cannot tell you. It only works for ' +
+      'molecules the human has already fetched coordinates for: getting them requires a ' +
+      'network call to an outside service, so it is a human decision and there is no tool ' +
+      'that can trigger it. If this returns nothing, ask the human to fetch 3D rather ' +
+      'than estimating a shape yourself.',
+    inputSchema: {
+      type: 'object',
+      properties: { smiles: SMILES_PARAM },
+      required: ['smiles'],
+    },
+    annotations: { readOnlyHint: true },
+    execute: guarded('get_3d_shape', async ({ smiles }: { smiles: string }) => {
+      const canonical = await canonicalize(smiles)
+      const conformer = knownConformer(canonical) ?? knownConformer(smiles)
+      if (!conformer) {
+        return fail(
+          'NOT_FOUND',
+          'No 3D coordinates have been fetched for this molecule.',
+          'Coordinates come from an outside service, so only the human can request them, ' +
+            'using the Fetch 3D coordinates button. Ask them to do it. Do not guess a shape.',
+        )
+      }
+      const shape = shapeFromSdf(conformer.sdf)
+      if (!shape) {
+        return fail(
+          'NOT_FOUND',
+          'The stored conformer could not be interpreted as 3D coordinates.',
+          'Ask the human to fetch it again.',
+        )
+      }
+      return ok({
+        smiles: canonical,
+        ...shape,
+        source: SOURCE_LABEL[conformer.source],
+        caveat:
+          'The maths is exact but the input is one conformer out of many a flexible ' +
+          'molecule can adopt. Report the shape as indicative, not settled, and never ' +
+          'compare two molecules on shape alone.',
       })
     }),
   },

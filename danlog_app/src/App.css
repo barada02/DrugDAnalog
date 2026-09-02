@@ -389,3 +389,19 @@ button:disabled:hover { border-color: var(--line); }
 .cbox__list li { padding: 2px 0; }
 .cbox__ok { color: var(--ok); }
 .cbox__bad { color: var(--bad); }
+
+/* --- stretch: 3D --- */
+
+.viewer3d {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0c0e12;
+  border: 1px solid var(--line);
+}
+/* 3Dmol injects an absolutely positioned canvas that ignores rounded corners. */
+.viewer3d canvas { border-radius: 8px; }
+
+.splash--inline { padding: 28px 12px; }

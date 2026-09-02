@@ -23,5 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# RDKit wasm build, restored by scripts/sync-rdkit.mjs
+# Vendor bundles, restored by scripts/sync-vendor.mjs
 public/rdkit/
+public/vendor/

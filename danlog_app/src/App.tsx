@@ -9,6 +9,7 @@ import { CONSTRAINT_PRESETS, describeConstraint } from './chem/constraints'
 import { download, toCsv, toSmiles } from './chem/export'
 import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
+import { Viewer3D } from './Viewer3D'
 import { useWorkbench } from './store/workbench'
 import type { Candidate } from './store/workbench'
 import './App.css'
@@ -716,6 +717,7 @@ function CallLog() {
 
 export default function App() {
   const status = useWorkbench((s) => s.rdkitStatus)
+  const focusSmiles = useWorkbench((s) => s.focus?.properties.canonicalSmiles ?? null)
   const rdkitError = useWorkbench((s) => s.rdkitError)
   const { tools, mcpError } = useBootstrap()
 
@@ -757,6 +759,7 @@ export default function App() {
           </div>
           <Board />
           <div className="column">
+            {focusSmiles && <Viewer3D key={focusSmiles} smiles={focusSmiles} />}
             <AccuracyLedger />
             <Lineage />
             <CallLog />
