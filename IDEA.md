@@ -309,7 +309,7 @@ state.
 From the challenge requirements:
 
 - [ ] Working **live URL** (testable in ChatGPT's in-app browser or Chrome with WebMCP enabled)
-- [ ] **Open source LICENSE file** — must be detectable in the GitHub *About* sidebar. A line in the README does **not** count. This is a silent disqualifier.
+- [x] **Open source LICENSE file** — MIT, at the repo root, so it is detectable in the GitHub *About* sidebar. A line in the README does **not** count. This was a silent disqualifier.
 - [ ] Public repo with all source, assets, and setup instructions
 - [ ] **Demo video** — under 3 minutes, public YouTube, with audio
 - [ ] Text description covering: why WebMCP fits, how it improves UX, what humans+agents can now do that was hard before, and how WebMCP was implemented
