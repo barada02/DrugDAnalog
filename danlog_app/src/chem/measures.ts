@@ -91,6 +91,27 @@ export const MEASURES: Measure[] = [
     unit: 'log mol/L',
     about: 'Aqueous solubility, ESOL regression. Roughly one log unit of error either way.',
   },
+  {
+    key: 'saScore',
+    label: 'SAScore',
+    tier: 'computed',
+    unit: '0-10',
+    about: 'Synthetic accessibility: how easy/hard to synthesize. 0=hard, 10=easy.',
+  },
+  {
+    key: 'bbaCrossing',
+    label: 'BBB',
+    tier: 'computed',
+    unit: '%',
+    about: 'Blood-brain barrier crossing probability. Relevant for neurological drugs.',
+  },
+  {
+    key: 'hiaScore',
+    label: 'HIA',
+    tier: 'computed',
+    unit: '%',
+    about: 'Human intestinal absorption. Predicts oral bioavailability.',
+  },
 ]
 
 export const measureFor = (key: keyof Properties): Measure | undefined =>
