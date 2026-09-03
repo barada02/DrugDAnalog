@@ -1,5 +1,7 @@
 import { getRDKit, withMol } from './rdkit'
 import { esol } from './solubility'
+import { calculateSAScore } from './sascore'
+import { calculateBBBProbability, calculateHIAScore } from './bioavailability'
 
 /** The subset of RDKit's 43 descriptors the workbench actually reasons about. */
 export type Properties = {
@@ -25,6 +27,12 @@ export type Properties = {
    * string describes 2^n compounds rather than one, which agents rarely notice.
    */
   undefinedStereocentres: number
+  /** Synthetic Accessibility Score: 0-10, 0=hard 10=easy */
+  saScore: number
+  /** Blood-Brain Barrier crossing probability: 0-100% */
+  bbaCrossing: number
+  /** Human Intestinal Absorption score: 0-100% */
+  hiaScore: number
 }
 
 type RawDescriptors = Record<string, number>
@@ -88,11 +96,30 @@ export async function computeProperties(smiles: string): Promise<Properties> {
     aromaticProportion: await aromaticProportion(smiles, base.heavyAtoms),
   })
 
+  // Calculate TIER 1 bioavailability and synthesis metrics
+  const saScore = await calculateSAScore(smiles)
+  const bbaCrossing = calculateBBBProbability({
+    logP: base.logP,
+    tpsa: base.tpsa,
+    mw: base.mw,
+    hbd: base.hbd,
+  })
+  const hiaScore = calculateHIAScore({
+    tpsa: base.tpsa,
+    mw: base.mw,
+    hba: base.hba,
+    hbd: base.hbd,
+    logP: base.logP,
+  })
+
   return {
     ...base,
     logS: solubility.logS,
     solubilityMgPerL: solubility.mgPerL,
     solubilityBand: solubility.band,
+    saScore: round(saScore),
+    bbaCrossing,
+    hiaScore,
   }
 }
 
