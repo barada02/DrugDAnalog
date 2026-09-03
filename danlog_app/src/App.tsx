@@ -117,10 +117,10 @@ function Rules({ report }: { report: Candidate['rules'] }) {
   )
 }
 
-/** Reactive or interfering groups, plus bioavailability concerns. */
+/** Reactive/interfering groups, bioavailability, and toxicity concerns. */
 function Alerts({ properties, profile }: { properties: Candidate['properties']; profile: Candidate['profile'] }) {
   const structuralAlerts = profile.alerts
-  const bioavailabilityAlerts = generateBioavailabilityAlerts(properties)
+  const bioavailabilityAlerts = generateBioavailabilityAlerts(properties, profile)
   const allAlerts = [...structuralAlerts, ...bioavailabilityAlerts]
 
   if (allAlerts.length === 0) return null

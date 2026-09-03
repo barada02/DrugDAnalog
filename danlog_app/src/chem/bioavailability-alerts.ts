@@ -1,12 +1,13 @@
 /**
- * Bioavailability-based alerts for the design board.
+ * Bioavailability and toxicity alerts for the design board.
  *
  * These alerts help chemists quickly identify molecules with poor
- * synthesis or absorption properties, allowing early filtering
+ * synthesis, absorption, or safety properties, allowing early filtering
  * before expensive lab work.
  */
 
 import type { Candidate } from '../store/workbench'
+import type { Profile } from './profile'
 import { describeSAScore, getSASeverity } from './sascore'
 import { describeHIAAbsorption } from './bioavailability'
 
@@ -17,13 +18,27 @@ export interface BiavailabilityAlert {
 }
 
 /**
- * Generate alerts based on synthesis and bioavailability scores.
+ * Generate alerts based on synthesis, bioavailability, and toxicity.
  * These are intended as helpful flags, not hard rejections.
  */
-export function generateBioavailabilityAlerts(properties: Candidate['properties']): BiavailabilityAlert[] {
+export function generateBioavailabilityAlerts(
+  properties: Candidate['properties'],
+  profile?: Profile,
+): BiavailabilityAlert[] {
   const alerts: BiavailabilityAlert[] = []
 
-  // SAScore alerts: very hard to synthesize molecules waste lab time
+  // === TOXICITY ALERTS (highest priority) ===
+  if (profile?.toxicityAlerts) {
+    for (const toxAlert of profile.toxicityAlerts) {
+      alerts.push({
+        label: toxAlert.label,
+        why: toxAlert.reason,
+        severity: toxAlert.severity,
+      })
+    }
+  }
+
+  // === SAScore alerts: very hard to synthesize molecules waste lab time
   if (properties.saScore > 8) {
     alerts.push({
       label: 'Extremely hard to synthesize',
@@ -38,7 +53,7 @@ export function generateBioavailabilityAlerts(properties: Candidate['properties'
     })
   }
 
-  // BBB alerts: only relevant if crossing is needed
+  // === BBB alerts: only relevant if crossing is needed
   // (displayed as info, not warning, because not all drugs need brain penetration)
   if (properties.bbaCrossing < 20) {
     alerts.push({
@@ -48,7 +63,7 @@ export function generateBioavailabilityAlerts(properties: Candidate['properties'
     })
   }
 
-  // HIA alerts: poor oral absorption is a hard blocker for oral drugs
+  // === HIA alerts: poor oral absorption is a hard blocker for oral drugs
   if (properties.hiaScore < 30) {
     alerts.push({
       label: 'Poor oral absorption',
@@ -63,7 +78,11 @@ export function generateBioavailabilityAlerts(properties: Candidate['properties'
     })
   }
 
-  return alerts
+  // Sort by severity: critical → warning → info
+  return alerts.sort((a, b) => {
+    const severityOrder = { critical: 0, warning: 1, info: 2 }
+    return severityOrder[a.severity] - severityOrder[b.severity]
+  })
 }
 
 /**
