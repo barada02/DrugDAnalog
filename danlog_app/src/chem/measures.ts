@@ -91,6 +91,77 @@ export const MEASURES: Measure[] = [
     unit: 'log mol/L',
     about: 'Aqueous solubility, ESOL regression. Roughly one log unit of error either way.',
   },
+  {
+    key: 'saScore',
+    label: 'SAScore',
+    tier: 'computed',
+    unit: '0-10',
+    about: 'Synthetic accessibility: how easy/hard to synthesize. 0=easy, 10=hard.',
+  },
+  {
+    key: 'bbaCrossing',
+    label: 'BBB',
+    tier: 'computed',
+    unit: '%',
+    about: 'Blood-brain barrier crossing probability. Relevant for neurological drugs.',
+  },
+  {
+    key: 'hiaScore',
+    label: 'HIA',
+    tier: 'computed',
+    unit: '%',
+    about: 'Human intestinal absorption. Predicts oral bioavailability.',
+  },
+  // === TIER 2: Metabolism & Bioavailability ===
+  {
+    key: 'metabolicStability',
+    label: 'Met. Stability',
+    tier: 'computed',
+    unit: '0-100',
+    about: 'Hepatic metabolic stability. Higher = more resistant to liver metabolism.',
+  },
+  {
+    key: 'cyp3a4Likelihood',
+    label: 'CYP3A4',
+    tier: 'computed',
+    unit: '%',
+    about: 'Likelihood of CYP3A4 metabolism. Most common drug-metabolizing enzyme.',
+  },
+  {
+    key: 'cyp2d6Likelihood',
+    label: 'CYP2D6',
+    tier: 'computed',
+    unit: '%',
+    about: 'Likelihood of CYP2D6 metabolism. Important for drug-drug interactions.',
+  },
+  {
+    key: 'cyp2c9Likelihood',
+    label: 'CYP2C9',
+    tier: 'computed',
+    unit: '%',
+    about: 'Likelihood of CYP2C9 metabolism. Moderate importance for interactions.',
+  },
+  {
+    key: 'oralBioavailability',
+    label: 'F%',
+    tier: 'computed',
+    unit: '%',
+    about: 'Estimated oral bioavailability. Combines absorption and metabolism.',
+  },
+  {
+    key: 'pgpEffluxLikelihood',
+    label: 'P-gp Efflux',
+    tier: 'computed',
+    unit: '%',
+    about: 'P-glycoprotein efflux risk. Will it be pumped out of cells/brain?',
+  },
+  {
+    key: 'netBrainPenetration',
+    label: 'Net BBB',
+    tier: 'computed',
+    unit: '%',
+    about: 'Brain penetration after efflux. BBB crossing minus P-gp export.',
+  },
 ]
 
 export const measureFor = (key: keyof Properties): Measure | undefined =>

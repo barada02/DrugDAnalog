@@ -1,6 +1,7 @@
 import { ALERTS, BIOISOSTERES, FUNCTIONAL_GROUPS, SUPERSEDES } from './catalog'
 import type { Alert, Bioisostere } from './catalog'
 import { getRDKit } from './rdkit'
+import { detectToxicityPatterns, type ToxicityAlert } from './toxicity-patterns'
 
 /**
  * Running the catalog against a molecule.
@@ -12,10 +13,12 @@ import { getRDKit } from './rdkit'
 
 export type GroupHit = { label: string; about: string; count: number }
 export type AlertHit = Alert & { count: number }
+export type ToxicityAlertHit = ToxicityAlert
 
 export type Profile = {
   groups: GroupHit[]
   alerts: AlertHit[]
+  toxicityAlerts: ToxicityAlertHit[]
 }
 
 type Pattern = { label: string; smarts: string }
@@ -99,8 +102,12 @@ export async function alerts(smiles: string): Promise<AlertHit[]> {
 }
 
 export async function profile(smiles: string): Promise<Profile> {
-  const [groups, hits] = await Promise.all([functionalGroups(smiles), alerts(smiles)])
-  return { groups, alerts: hits }
+  const [groups, hits, toxicityAlerts] = await Promise.all([
+    functionalGroups(smiles),
+    alerts(smiles),
+    detectToxicityPatterns(smiles),
+  ])
+  return { groups, alerts: hits, toxicityAlerts }
 }
 
 /** Replacements available for the groups this molecule actually has. */

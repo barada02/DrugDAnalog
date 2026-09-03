@@ -59,6 +59,12 @@ export type Candidate = {
 
 export type CandidateStatus = 'pending' | 'accepted' | 'rejected'
 
+/** Which workspace the human is looking at. Purely presentational. */
+export type Page = 'overview' | 'design' | 'explore' | 'compare' | 'evolution' | 'settings' | 'help'
+
+/** Tabs inside the inspection drawer. */
+export type InspectTab = 'overview' | 'properties' | 'predictions' | 'synthesis' | 'notes'
+
 export type LogEntry = {
   id: string
   at: number
@@ -93,6 +99,23 @@ type WorkbenchState = {
   focusId: string | null
   candidates: Candidate[]
   log: LogEntry[]
+
+  // --- presentation only ---------------------------------------------------
+  // None of this is persisted and no WebMCP tool can reach it. It exists so the
+  // shell, the drawer and the compare tray can remember where the human was.
+  /** Which page the shell is showing. */
+  page: Page
+  /** Candidate open in the inspection drawer, or null when it is closed. */
+  inspectId: string | null
+  inspectTab: InspectTab
+  /** Candidate ids staged on the Compare page, in the order they were picked. */
+  compareIds: string[]
+  /** Human shortlist ("starred"), separate from the accept/reject decision. */
+  shortlist: string[]
+  /** Free-text notes the human keeps against a candidate, keyed by id. */
+  candidateNotes: Record<string, string>
+  /** Whether the developer/agent trace panel is open. */
+  traceOpen: boolean
 }
 
 type WorkbenchActions = {
@@ -114,7 +137,22 @@ type WorkbenchActions = {
   restore: () => Promise<boolean>
   reset: () => void
   note: (entry: Omit<LogEntry, 'id' | 'at'>) => void
+
+  // --- presentation only ---------------------------------------------------
+  setPage: (page: Page) => void
+  /** Open the drawer on a candidate, or pass null to close it. */
+  inspect: (id: string | null) => void
+  setInspectTab: (tab: InspectTab) => void
+  /** Add or remove a candidate from the compare tray. Capped at five. */
+  toggleCompare: (id: string) => void
+  setCompareIds: (ids: string[]) => void
+  toggleShortlist: (id: string) => void
+  setCandidateNote: (id: string, text: string) => void
+  setTraceOpen: (open: boolean) => void
 }
+
+/** The compare table stops being readable past five columns plus the focus. */
+export const MAX_COMPARE = 5
 
 const id = () => crypto.randomUUID()
 
@@ -175,6 +213,14 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   focusId: null,
   candidates: [],
   log: [],
+
+  page: 'design',
+  inspectId: null,
+  inspectTab: 'overview',
+  compareIds: [],
+  shortlist: [],
+  candidateNotes: {},
+  traceOpen: false,
 
   setRdkitStatus: (rdkitStatus, rdkitError = undefined) =>
     set({ rdkitStatus, rdkitError: rdkitError ?? null }),
@@ -325,8 +371,57 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
 
   reset: () => {
     clearSaved()
-    set({ goal: '', scaffold: null, constraints: [], focus: null, focusId: null, candidates: [], log: [] })
+    set({
+      goal: '',
+      scaffold: null,
+      constraints: [],
+      focus: null,
+      focusId: null,
+      candidates: [],
+      log: [],
+      inspectId: null,
+      compareIds: [],
+      shortlist: [],
+      candidateNotes: {},
+    })
   },
+
+  // --- presentation only -----------------------------------------------------
+
+  setPage: (page) => set({ page }),
+
+  // Opening the drawer always lands on Overview. Reopening a different molecule
+  // on whatever tab the last one was left on reads as a glitch.
+  inspect: (inspectId) =>
+    set((state) => ({
+      inspectId,
+      inspectTab: inspectId && inspectId !== state.inspectId ? 'overview' : state.inspectTab,
+    })),
+
+  setInspectTab: (inspectTab) => set({ inspectTab }),
+
+  toggleCompare: (id) =>
+    set((state) => ({
+      compareIds: state.compareIds.includes(id)
+        ? state.compareIds.filter((c) => c !== id)
+        : state.compareIds.length >= MAX_COMPARE
+          ? state.compareIds
+          : [...state.compareIds, id],
+    })),
+
+  setCompareIds: (ids) => set({ compareIds: ids.slice(0, MAX_COMPARE) }),
+
+  toggleShortlist: (id) =>
+    set((state) => ({
+      shortlist: state.shortlist.includes(id)
+        ? state.shortlist.filter((s) => s !== id)
+        : [...state.shortlist, id],
+    })),
+
+  setCandidateNote: (id, text) =>
+    set((state) => ({ candidateNotes: { ...state.candidateNotes, [id]: text } })),
+
+  setTraceOpen: (traceOpen) => set({ traceOpen }),
 }))
 
 /**

@@ -107,4 +107,11 @@ export const CONSTRAINT_PRESETS: { name: string; constraints: Constraint[] }[] =
       { key: 'hbd', label: 'HBD', max: 3 },
     ],
   },
+  {
+    name: 'Metabolically stable',
+    constraints: [
+      { key: 'metabolicStability', label: 'Met. Stability', min: 60 },
+      { key: 'oralBioavailability', label: 'F%', min: 40 },
+    ],
+  },
 ]
