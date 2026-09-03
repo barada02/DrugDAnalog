@@ -9,6 +9,7 @@ import { CONSTRAINT_PRESETS, describeConstraint } from './chem/constraints'
 import { download, toCsv, toSmiles } from './chem/export'
 import { isValidPattern } from './chem/substructure'
 import { registerTools, TOOL_NAMES } from './mcp/tools'
+import { generateBioavailabilityAlerts } from './chem/bioavailability-alerts'
 import { Viewer3D } from './Viewer3D'
 import { useWorkbench } from './store/workbench'
 import type { Candidate } from './store/workbench'
@@ -116,12 +117,16 @@ function Rules({ report }: { report: Candidate['rules'] }) {
   )
 }
 
-/** Reactive or interfering groups. A clean property table does not excuse these. */
-function Alerts({ hits }: { hits: Candidate['profile']['alerts'] }) {
-  if (hits.length === 0) return null
+/** Reactive or interfering groups, plus bioavailability concerns. */
+function Alerts({ candidate }: { candidate: Candidate }) {
+  const structuralAlerts = candidate.profile.alerts
+  const bioavailabilityAlerts = generateBioavailabilityAlerts(candidate.properties)
+  const allAlerts = [...structuralAlerts, ...bioavailabilityAlerts]
+
+  if (allAlerts.length === 0) return null
   return (
     <ul className="alerts">
-      {hits.map((a) => (
+      {allAlerts.map((a) => (
         <li key={a.label} className={'alerts__item alerts__item--' + a.severity}>
           <strong>{a.label}</strong> {a.why}
         </li>
@@ -413,7 +418,7 @@ function FocusPanel() {
           </p>
           <Warnings p={focus.properties} />
           <Groups groups={focus.profile.groups} />
-          <Alerts hits={focus.profile.alerts} />
+          <Alerts candidate={focus} />
           <Rules report={focus.rules} />
         </>
       )}
@@ -571,7 +576,7 @@ function Board() {
               </p>
             )}
             <Warnings p={candidate.properties} />
-            <Alerts hits={candidate.profile.alerts} />
+            <Alerts candidate={candidate} />
             <Constraints report={candidate.constraints} />
             <Properties p={candidate.properties} />
             <Scorecard candidate={candidate} />
