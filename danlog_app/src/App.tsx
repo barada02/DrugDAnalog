@@ -118,9 +118,9 @@ function Rules({ report }: { report: Candidate['rules'] }) {
 }
 
 /** Reactive or interfering groups, plus bioavailability concerns. */
-function Alerts({ candidate }: { candidate: Candidate }) {
-  const structuralAlerts = candidate.profile.alerts
-  const bioavailabilityAlerts = generateBioavailabilityAlerts(candidate.properties)
+function Alerts({ properties, profile }: { properties: Candidate['properties']; profile: Candidate['profile'] }) {
+  const structuralAlerts = profile.alerts
+  const bioavailabilityAlerts = generateBioavailabilityAlerts(properties)
   const allAlerts = [...structuralAlerts, ...bioavailabilityAlerts]
 
   if (allAlerts.length === 0) return null
@@ -418,7 +418,7 @@ function FocusPanel() {
           </p>
           <Warnings p={focus.properties} />
           <Groups groups={focus.profile.groups} />
-          <Alerts candidate={focus} />
+          <Alerts properties={focus.properties} profile={focus.profile} />
           <Rules report={focus.rules} />
         </>
       )}
@@ -596,7 +596,7 @@ function Board() {
               </p>
             )}
             <Warnings p={candidate.properties} />
-            <Alerts candidate={candidate} />
+            <Alerts properties={candidate.properties} profile={candidate.profile} />
             <Constraints report={candidate.constraints} />
             <Properties p={candidate.properties} />
             <Scorecard candidate={candidate} />

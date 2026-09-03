@@ -8,7 +8,7 @@
 
 import type { Candidate } from '../store/workbench'
 import { describeSAScore, getSASeverity } from './sascore'
-import { describeBBBCrossing, describeHIAAbsorption } from './bioavailability'
+import { describeHIAAbsorption } from './bioavailability'
 
 export interface BiavailabilityAlert {
   label: string
@@ -74,7 +74,7 @@ export function generateBioavailabilityBadges(properties: Candidate['properties'
   label: string
   tone: 'ok' | 'wait' | 'bad'
 }> {
-  const badges = []
+  const badges: Array<{ label: string; tone: 'ok' | 'wait' | 'bad' }> = []
 
   // SAScore badge
   const saSeverity = getSASeverity(properties.saScore)
