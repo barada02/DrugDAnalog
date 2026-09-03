@@ -96,7 +96,7 @@ export const MEASURES: Measure[] = [
     label: 'SAScore',
     tier: 'computed',
     unit: '0-10',
-    about: 'Synthetic accessibility: how easy/hard to synthesize. 0=hard, 10=easy.',
+    about: 'Synthetic accessibility: how easy/hard to synthesize. 0=easy, 10=hard.',
   },
   {
     key: 'bbaCrossing',
