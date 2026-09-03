@@ -2,6 +2,10 @@ import { getRDKit, withMol } from './rdkit'
 import { esol } from './solubility'
 import { calculateSAScore } from './sascore'
 import { calculateBBBProbability, calculateHIAScore } from './bioavailability'
+import { calculateMetabolicStability } from './metabolic-stability'
+import { predictCYP450Profile } from './cyp450-prediction'
+import { estimateOralBioavailability } from './bioavailability-combined'
+import { predictPGpEfflux } from './pgp-efflux'
 
 /** The subset of RDKit's 43 descriptors the workbench actually reasons about. */
 export type Properties = {
@@ -33,6 +37,25 @@ export type Properties = {
   bbaCrossing: number
   /** Human Intestinal Absorption score: 0-100% */
   hiaScore: number
+  // === TIER 2: Metabolism & Bioavailability ===
+  /** Metabolic stability score (0-100, higher = more stable) */
+  metabolicStability: number
+  /** Predicted half-life category */
+  halfLifeCategory: 'very short' | 'short' | 'moderate' | 'long' | 'very long'
+  /** CYP3A4 substrate likelihood (0-100%) */
+  cyp3a4Likelihood: number
+  /** CYP2D6 substrate likelihood (0-100%) */
+  cyp2d6Likelihood: number
+  /** CYP2C9 substrate likelihood (0-100%) */
+  cyp2c9Likelihood: number
+  /** Dominant metabolizing enzyme */
+  dominantCYP: 'CYP3A4' | 'CYP2D6' | 'CYP2C9' | 'CYP2C19' | 'CYP1A2' | 'other'
+  /** Combined oral bioavailability estimate (F%, 0-100) */
+  oralBioavailability: number
+  /** P-gp efflux substrate likelihood (0-100%) */
+  pgpEffluxLikelihood: number
+  /** Net brain penetration after accounting for efflux (0-100%) */
+  netBrainPenetration: number
 }
 
 type RawDescriptors = Record<string, number>
@@ -112,6 +135,18 @@ export async function computeProperties(smiles: string): Promise<Properties> {
     logP: base.logP,
   })
 
+  // === TIER 2: Metabolism and Advanced Bioavailability ===
+  const metabolic = calculateMetabolicStability(base as any)
+  const cyp450 = predictCYP450Profile(base as any)
+  const pgp = predictPGpEfflux(base as any)
+
+  // Combine all bioavailability factors
+  const bioavail = estimateOralBioavailability(
+    base as any,
+    metabolic,
+    hiaScore,
+  )
+
   return {
     ...base,
     logS: solubility.logS,
@@ -120,6 +155,16 @@ export async function computeProperties(smiles: string): Promise<Properties> {
     saScore: round(saScore),
     bbaCrossing,
     hiaScore,
+    // TIER 2 fields
+    metabolicStability: metabolic.stabilityScore,
+    halfLifeCategory: metabolic.halfLife,
+    cyp3a4Likelihood: cyp450.cyp3a4.likelihood,
+    cyp2d6Likelihood: cyp450.cyp2d6.likelihood,
+    cyp2c9Likelihood: cyp450.cyp2c9.likelihood,
+    dominantCYP: cyp450.dominantEnzyme,
+    oralBioavailability: bioavail.fPercent,
+    pgpEffluxLikelihood: pgp.effluxProbability,
+    netBrainPenetration: pgp.netBrainPenetration,
   }
 }
 
