@@ -38,7 +38,10 @@
   --shadow-lift: 0 2px 6px rgba(20, 24, 40, 0.07), 0 12px 30px rgba(20, 24, 40, 0.09);
 
   --nav-w: 92px;
-  --drawer-w: 460px;
+  /* Docked, so it is spent from the board's width -- kept as tight as the
+     comparison table can be read at. */
+  --drawer-w: 412px;
+  --drawer-w-wide: 460px;
 }
 
 * {
@@ -1641,18 +1644,33 @@ select:focus {
 }
 
 .drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(var(--drawer-w), 100vw);
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border-left: 1px solid var(--line);
+  animation: slide 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Takes its own column, so the board narrows and stays usable beside it. */
+.drawer--docked {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  width: var(--drawer-w);
+  flex: none;
+  box-shadow: -6px 0 22px rgba(20, 24, 40, 0.05);
+}
+
+/* Floats over the page. For things you glance at, not work alongside. */
+.drawer--overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--drawer-w-wide), 100vw);
   box-shadow: -14px 0 40px rgba(20, 24, 40, 0.1);
   z-index: 41;
-  animation: slide 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes slide {
@@ -1660,6 +1678,51 @@ select:focus {
     transform: translateX(24px);
     opacity: 0;
   }
+}
+
+/* --- structure hero --- */
+
+.hero {
+  position: relative;
+  margin-top: 2px;
+}
+
+.hero__switch {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--line);
+}
+
+.hero__switch button {
+  padding: 4px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 620;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.hero__switch button:hover {
+  color: var(--text);
+}
+
+.hero__switch button.on {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+.hero .viewer3d {
+  height: 232px;
 }
 
 .drawer__head {
@@ -2589,6 +2652,42 @@ button.mini:hover {
   }
 }
 
+/* The docked panel spends real width, so the two-column page layouts have to
+   give it up rather than squeezing into something unreadable. Scoped to the
+   width where the panel is actually docked, otherwise these outrank the
+   narrow-screen rules further down. */
+@media (min-width: 1181px) {
+  .shell:has(.drawer--docked) .comparelayout,
+  .shell:has(.drawer--docked) .evolutionlayout,
+  .shell:has(.drawer--docked) .overviewlayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell:has(.drawer--docked) .focus__body {
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  }
+
+  .shell:has(.drawer--docked) .cgrid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+
+/* Below this there is not enough left over to be worth narrowing, so the
+   panel goes back to floating over the page. */
+@media (max-width: 1180px) {
+  .drawer--docked {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    align-self: auto;
+    width: min(var(--drawer-w-wide), 100vw);
+    box-shadow: -14px 0 40px rgba(20, 24, 40, 0.12);
+    z-index: 41;
+  }
+}
+
 @media (max-width: 980px) {
   .focus__body {
     grid-template-columns: minmax(0, 1fr);
@@ -2627,7 +2726,8 @@ button.mini:hover {
   }
 
   /* At this width the drawer stops being a side panel and takes the screen. */
-  .drawer {
+  .drawer--docked,
+  .drawer--overlay {
     width: 100vw;
   }
 }

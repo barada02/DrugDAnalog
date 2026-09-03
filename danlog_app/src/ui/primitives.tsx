@@ -116,9 +116,15 @@ export function Tabs<T extends string>({
 }
 
 /**
- * The right-hand inspection panel. Escape closes it, and focus is not trapped
- * on purpose -- the board behind stays usable while a candidate is open, which
- * is the point of a drawer rather than a modal.
+ * The right-hand panel, in two flavours.
+ *
+ * `docked` takes its own column in the shell: the workspace narrows and the
+ * board stays visible and clickable beside it, so you can walk a row of
+ * candidates without closing anything. That is what the inspector wants.
+ *
+ * `overlay` floats above the page behind a scrim. Right for something you
+ * glance at and dismiss -- the developer trace -- and wrong for anything you
+ * are meant to work alongside.
  */
 export function Drawer({
   open,
@@ -128,6 +134,7 @@ export function Drawer({
   badge,
   children,
   footer,
+  variant = 'overlay',
 }: {
   open: boolean
   onClose: () => void
@@ -136,6 +143,7 @@ export function Drawer({
   badge?: ReactNode
   children: ReactNode
   footer?: ReactNode
+  variant?: 'docked' | 'overlay'
 }) {
   useEffect(() => {
     if (!open) return
@@ -150,8 +158,16 @@ export function Drawer({
 
   return (
     <>
-      <div className="drawer__scrim" onClick={onClose} aria-hidden="true" />
-      <aside className="drawer" role="dialog" aria-label={typeof title === 'string' ? title : 'Inspector'}>
+      {variant === 'overlay' && (
+        <div className="drawer__scrim" onClick={onClose} aria-hidden="true" />
+      )}
+      <aside
+        className={'drawer drawer--' + variant}
+        // A docked panel is not modal and does not trap anything, so calling it
+        // a dialog would lie to a screen reader about what the page is doing.
+        role={variant === 'overlay' ? 'dialog' : 'complementary'}
+        aria-label={typeof title === 'string' ? title : 'Inspector'}
+      >
         <header className="drawer__head">
           <div className="drawer__heading">
             <h2 className="drawer__title">{title}</h2>

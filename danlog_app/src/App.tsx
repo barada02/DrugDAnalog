@@ -81,7 +81,11 @@ export default function App() {
   )
 
   return (
-    <AppShell tools={tools.length} agentReady={tools.length > 0 && status === 'ready'}>
+    <AppShell
+      tools={tools.length}
+      agentReady={tools.length > 0 && status === 'ready'}
+      drawer={status === 'ready' ? <CandidateInspector ranked={ranked} /> : null}
+    >
       {status === 'loading' && (
         <div className="splash">
           <div className="spinner" />
@@ -110,8 +114,6 @@ export default function App() {
           {page === 'evolution' && <EvolutionPage ranked={ranked} />}
           {page === 'settings' && <SettingsPage tools={tools} />}
           {page === 'help' && <HelpPage />}
-
-          <CandidateInspector ranked={ranked} />
         </>
       )}
 

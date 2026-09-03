@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import type { Shape } from '../chem/shape'
 import { useWorkbench, type InspectTab } from '../store/workbench'
 import type { Candidate, Molecule } from '../store/workbench'
 import type { Properties } from '../chem/properties'
@@ -238,10 +239,9 @@ function PredictionsTab({ candidate }: { candidate: Candidate }) {
   )
 }
 
-function SynthesisTab({ candidate }: { candidate: Candidate }) {
+function SynthesisTab({ candidate, shape }: { candidate: Candidate; shape: Shape | null }) {
   const sa = candidate.properties.saScore
   const severity = getSASeverity(sa)
-  const smiles = candidate.properties.canonicalSmiles
 
   return (
     <>
@@ -285,8 +285,41 @@ function SynthesisTab({ candidate }: { candidate: Candidate }) {
       </section>
 
       <section className="drawer__section">
-        <h3>3D structure</h3>
-        <Viewer3D key={smiles} smiles={smiles} compact />
+        <h3>Shape</h3>
+        {shape ? (
+          <>
+            <dl className="props props--three">
+              <div
+                className="props__cell props__cell--estimated"
+                title="Normalised principal moment ratios"
+              >
+                <dt>NPR1</dt>
+                <dd>{shape.npr1}</dd>
+              </div>
+              <div className="props__cell props__cell--estimated">
+                <dt>NPR2</dt>
+                <dd>{shape.npr2}</dd>
+              </div>
+              <div
+                className="props__cell props__cell--estimated"
+                title="Longest interatomic distance"
+              >
+                <dt>Span</dt>
+                <dd>{shape.span}</dd>
+              </div>
+            </dl>
+            <p className="hint">
+              Shape: <strong>{shape.descriptor}</strong>. Computed exactly from the coordinates in
+              the 3D view above &mdash; but they are <em>one</em> conformer out of many this
+              molecule can adopt, so treat the shape as indicative, not settled.
+            </p>
+          </>
+        ) : (
+          <p className="hint">
+            Shape descriptors need 3D coordinates. Switch the view at the top of this panel to 3D
+            and they appear here once the conformer arrives.
+          </p>
+        )}
       </section>
     </>
   )
@@ -356,8 +389,23 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
   const shortlist = useWorkbench((s) => s.shortlist)
   const toggleShortlist = useWorkbench((s) => s.toggleShortlist)
 
+  // Which representation leads the panel. Sticky across candidates on purpose:
+  // someone comparing shapes wants to stay in 3D as they walk the board.
+  const [view, setView] = useState<'3d' | '2d'>('3d')
+
   const entry = ranked.find((r) => r.candidate.id === inspectId) ?? null
   const candidate = entry?.candidate ?? null
+  const smiles = candidate?.properties.canonicalSmiles ?? ''
+
+  /**
+   * Shape is lifted out of the viewer so the Synthesis tab can show the
+   * descriptors while the 3D view stays at the top of the panel. It is stored
+   * WITH the molecule it was measured from: in 2D there is no viewer mounted
+   * to clear it, so an unqualified value would be attributed to whichever
+   * candidate you opened next.
+   */
+  const [shapeOf, setShapeOf] = useState<{ smiles: string; shape: Shape | null } | null>(null)
+  const shape = shapeOf?.smiles === smiles ? shapeOf.shape : null
 
   const judge = (status: 'accepted' | 'rejected') => {
     if (!candidate) return
@@ -404,6 +452,7 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
   return (
     <Drawer
       open
+      variant="docked"
       onClose={() => inspect(null)}
       title={`Candidate ${String(entry.rank).padStart(2, '0')}`}
       badge={
@@ -443,7 +492,38 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
         </>
       }
     >
-      <Depiction svg={candidate.svg} size="lg" faded={candidate.status === 'rejected'} />
+      <div className="hero">
+        <div className="hero__switch" role="group" aria-label="Structure view">
+          <button
+            className={view === '3d' ? 'on' : ''}
+            onClick={() => setView('3d')}
+            aria-pressed={view === '3d'}
+          >
+            3D
+          </button>
+          <button
+            className={view === '2d' ? 'on' : ''}
+            onClick={() => setView('2d')}
+            aria-pressed={view === '2d'}
+          >
+            2D
+          </button>
+        </div>
+
+        {view === '3d' ? (
+          // Keyed by molecule: a new candidate gets a fresh fetch and a fresh
+          // viewer rather than the previous molecule's coordinates.
+          <Viewer3D
+            key={smiles}
+            smiles={smiles}
+            compact
+            showShape={false}
+            onShape={(next) => setShapeOf({ smiles, shape: next })}
+          />
+        ) : (
+          <Depiction svg={candidate.svg} size="lg" faded={candidate.status === 'rejected'} />
+        )}
+      </div>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
@@ -451,7 +531,7 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
         {tab === 'overview' && <OverviewTab ranked={entry} focus={focus} />}
         {tab === 'properties' && <PropertiesTab candidate={candidate} />}
         {tab === 'predictions' && <PredictionsTab candidate={candidate} />}
-        {tab === 'synthesis' && <SynthesisTab candidate={candidate} />}
+        {tab === 'synthesis' && <SynthesisTab candidate={candidate} shape={shape} />}
         {tab === 'notes' && <NotesTab candidate={candidate} />}
       </div>
     </Drawer>

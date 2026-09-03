@@ -48,7 +48,19 @@ function loadViewerLibrary(): Promise<void> {
 
 type Status = 'idle' | 'working' | 'ready' | 'error'
 
-export function Viewer3D({ smiles, compact = false }: { smiles: string; compact?: boolean }) {
+export function Viewer3D({
+  smiles,
+  compact = false,
+  showShape = true,
+  onShape,
+}: {
+  smiles: string
+  compact?: boolean
+  /** Hidden when the caller renders the descriptors somewhere of its own. */
+  showShape?: boolean
+  /** Reports the shape up, so it can be displayed away from the viewer. */
+  onShape?: (shape: Shape | null) => void
+}) {
   const mount = useRef<HTMLDivElement | null>(null)
   const viewer = useRef<Viewer3DApi | null>(null)
   const [status, setStatus] = useState<Status>(() => (knownConformer(smiles) ? 'ready' : 'idle'))
@@ -67,6 +79,20 @@ export function Viewer3D({ smiles, compact = false }: { smiles: string; compact?
     () => (conformer ? shapeFromSdf(conformer.sdf) : null),
     [conformer],
   )
+
+  // Reported through a ref so the effect fires on the shape changing and never
+  // on the callback's identity. A caller passing an inline arrow would
+  // otherwise re-run this every render, and each run sets the caller's state.
+  const onShapeRef = useRef(onShape)
+  useEffect(() => {
+    onShapeRef.current = onShape
+  })
+
+  // Null until a conformer lands, which is what lets a panel elsewhere say
+  // "not fetched yet" rather than showing a stale molecule's numbers.
+  useEffect(() => {
+    onShapeRef.current?.(shape)
+  }, [shape])
 
   useEffect(() => {
     let cancelled = false
@@ -196,7 +222,7 @@ export function Viewer3D({ smiles, compact = false }: { smiles: string; compact?
             Source: {SOURCE_LABEL[conformer.source]} &middot; {conformer.atoms} atoms with
             hydrogens.
           </p>
-          {shape && (
+          {shape && showShape && (
             <>
               <dl className="props props--three">
                 <div

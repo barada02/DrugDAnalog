@@ -278,10 +278,16 @@ function TopBar({ tools, agentReady }: { tools: number; agentReady: boolean }) {
 export function AppShell({
   tools,
   agentReady,
+  drawer,
   children,
 }: {
   tools: number
   agentReady: boolean
+  /**
+   * The docked inspector. A sibling of the workspace rather than a child, so
+   * that opening it narrows the board instead of covering it.
+   */
+  drawer?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -291,6 +297,7 @@ export function AppShell({
         <TopBar tools={tools} agentReady={agentReady} />
         <main className="shell__content">{children}</main>
       </div>
+      {drawer}
     </div>
   )
 }
