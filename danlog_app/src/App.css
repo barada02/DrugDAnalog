@@ -2277,7 +2277,6 @@ select:focus {
    Evolution page
    ========================================================================== */
 
-.timeline,
 .strip {
   display: flex;
   align-items: stretch;
@@ -2286,7 +2285,6 @@ select:focus {
   padding-bottom: 6px;
 }
 
-.timeline__step,
 .strip__step {
   display: flex;
   align-items: center;
@@ -2294,14 +2292,12 @@ select:focus {
   flex: none;
 }
 
-.timeline__arrow,
 .strip__arrow {
   color: var(--line);
   font-size: 17px;
   flex: none;
 }
 
-.tnode,
 .mini {
   display: flex;
   flex-direction: column;
@@ -2317,13 +2313,11 @@ select:focus {
   cursor: default;
 }
 
-button.tnode,
 button.mini {
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-button.tnode:hover,
 button.mini:hover {
   border-color: var(--accent-line);
   box-shadow: var(--shadow);
@@ -2334,24 +2328,264 @@ button.mini:hover {
   background: var(--accent-soft);
 }
 
-.tnode__step {
-  font-size: 10px;
-  font-weight: 640;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.tnode .depiction,
 .mini .depiction {
   width: 100%;
 }
 
-.tnode__name,
 .mini__title {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.3;
+}
+
+/* --- generation tree ---
+   One column per generation, siblings grouped under the parent they were
+   actually designed from. No connector lines: the grouping states parentage
+   outright, where a drawn edge between free-floating nodes only implies it. */
+
+.gentree {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.gen {
+  flex: none;
+  padding: 0 18px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.gen:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.gen__head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.gen__head strong {
+  font-size: 10.5px;
+  font-weight: 640;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.gen__head span {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.gen__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sibgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sibgroup__from {
+  font-size: 10px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.sibgroup__nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.evonode {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  width: 182px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.evonode:hover {
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow);
+}
+
+.evonode .depiction {
+  width: 100%;
+}
+
+.evonode--promoted {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.evonode--focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.evonode--rejected {
+  opacity: 0.5;
+}
+
+.evonode--rejected:hover {
+  opacity: 1;
+}
+
+.evonode--ghost {
+  cursor: default;
+  border-style: dashed;
+  background: var(--surface-sunk);
+  gap: 7px;
+}
+
+.evonode--ghost:hover {
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.evonode__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.evonode__rank {
+  font-size: 10px;
+  font-weight: 660;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.evonode__mark {
+  font-size: 9.5px;
+  font-weight: 620;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.evonode__mark--focus,
+.evonode__mark--promoted {
+  color: var(--accent-deep);
+}
+
+.evonode__mark--rejected {
+  color: var(--bad);
+}
+
+.evonode__name {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.evonode__stat {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+
+.evonode__stat--muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.evonode__goals {
+  font-size: 10px;
+  color: var(--warn);
+}
+
+.evonode__goals--met {
+  color: var(--ok);
+}
+
+/* --- convergence chart --- */
+
+.linechart {
+  display: block;
+  width: 100%;
+  max-width: 470px;
+}
+
+.linechart__grid {
+  stroke: var(--line-soft);
+  stroke-width: 1;
+}
+
+.linechart__tick {
+  font-size: 9px;
+  fill: var(--muted);
+}
+
+.linechart__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.linechart__line--dashed {
+  stroke-dasharray: 4 3;
+}
+
+/* --- trends --- */
+
+.summaryline {
+  margin: 0 0 14px;
+  padding: 10px 13px;
+  font-size: 13px;
+  color: var(--text-soft);
+  background: var(--surface-sunk);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* Coloured on the text rather than the cell, so the row hover still reads. */
+.ctable__cell--good .ctable__val {
+  color: var(--ok);
+}
+
+.ctable__cell--bad .ctable__val {
+  color: var(--warn);
+}
+
+.evolutioncol {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.focuspanel__reset {
+  width: 100%;
+  margin-top: 14px;
 }
 
 .mini__sub {

@@ -95,6 +95,106 @@ export function RadarChart({
   )
 }
 
+export type LineSeries = {
+  name: string
+  color: string
+  /** One value per label, 0..1. Null leaves a gap rather than inventing a point. */
+  points: (number | null)[]
+  dashed?: boolean
+}
+
+/**
+ * Progress across generations, on a fixed 0..100% axis.
+ *
+ * The axis is deliberately NOT scaled to the data: the question is "how close
+ * to the brief", and an auto-scaled axis makes 2/4 look like the top of the
+ * chart. A flat line at 50% should read as flat.
+ */
+export function LineChart({
+  labels,
+  series,
+  height = 168,
+}: {
+  labels: string[]
+  series: LineSeries[]
+  height?: number
+}) {
+  const width = 420
+  const padL = 38
+  const padR = 12
+  const padT = 10
+  const padB = 26
+  const plotW = width - padL - padR
+  const plotH = height - padT - padB
+
+  if (labels.length === 0) return null
+
+  const x = (i: number) =>
+    labels.length === 1 ? padL + plotW / 2 : padL + (i / (labels.length - 1)) * plotW
+  const y = (v: number) => padT + (1 - Math.max(0, Math.min(1, v))) * plotH
+
+  const ticks = [0, 0.25, 0.5, 0.75, 1]
+
+  return (
+    <svg
+      className="linechart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Progress across generations"
+    >
+      {ticks.map((t) => (
+        <g key={t}>
+          <line className="linechart__grid" x1={padL} y1={y(t)} x2={width - padR} y2={y(t)} />
+          <text className="linechart__tick" x={padL - 7} y={y(t)} textAnchor="end" dy="0.32em">
+            {Math.round(t * 100)}%
+          </text>
+        </g>
+      ))}
+
+      {series.map((s) => {
+        // Split on nulls so a gap is a gap, not a straight line through it.
+        const runs: { i: number; v: number }[][] = []
+        let run: { i: number; v: number }[] = []
+        s.points.forEach((v, i) => {
+          if (v === null) {
+            if (run.length) runs.push(run)
+            run = []
+          } else {
+            run.push({ i, v })
+          }
+        })
+        if (run.length) runs.push(run)
+
+        return (
+          <g key={s.name}>
+            {runs.map((r, ri) => (
+              <path
+                key={ri}
+                className={'linechart__line' + (s.dashed ? ' linechart__line--dashed' : '')}
+                style={{ stroke: s.color }}
+                d={r
+                  .map((p, k) => `${k === 0 ? 'M' : 'L'}${x(p.i).toFixed(1)} ${y(p.v).toFixed(1)}`)
+                  .join(' ')}
+              />
+            ))}
+            {s.points.map((v, i) =>
+              v === null ? null : (
+                <circle key={i} cx={x(i)} cy={y(v)} r="3.2" style={{ fill: s.color }} />
+              ),
+            )}
+          </g>
+        )
+      })}
+
+      {labels.map((label, i) => (
+        <text key={label + i} className="linechart__tick" x={x(i)} y={height - 8} textAnchor="middle">
+          {label}
+        </text>
+      ))}
+    </svg>
+  )
+}
+
 /**
  * A property's path across generations. Flat when every value is the same,
  * rather than a misleading full-height line through a single repeated number.
