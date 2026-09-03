@@ -70,6 +70,37 @@ function Badge({ label, tone }: { label: string; tone: 'ok' | 'wait' | 'bad' }) 
   return <span className={'badge badge--' + tone}>{label}</span>
 }
 
+/** Left sidebar navigation */
+function Sidebar() {
+  const navItems = [
+    { id: 'overview', icon: '📊', label: 'Overview' },
+    { id: 'design', icon: '🧪', label: 'Design' },
+    { id: 'explore', icon: '🔍', label: 'Explore' },
+    { id: 'compare', icon: '⚖️', label: 'Compare' },
+    { id: 'evolution', icon: '🧬', label: 'Evolution' },
+    { id: 'settings', icon: '⚙️', label: 'Settings' },
+    { id: 'help', icon: '❓', label: 'Help' },
+  ]
+
+  return (
+    <div className="app__sidebar">
+      {navItems.map((item) => (
+        <button
+          key={item.id}
+          className="nav-icon"
+          title={item.label}
+          onClick={() => {
+            // Future: implement tab navigation
+            console.log('Tab:', item.id)
+          }}
+        >
+          {item.icon}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Driven by MEASURES so the grid and the tool responses can never disagree
  * about what a number is or how far to trust it.
@@ -734,23 +765,6 @@ function Lineage() {
   )
 }
 
-function CallLog() {
-  const log = useWorkbench((s) => s.log)
-  return (
-    <section className="panel panel--log">
-      <h2>Call log</h2>
-      <ul className="log">
-        {log.map((entry) => (
-          <li key={entry.id} className={entry.ok ? '' : 'log__entry--fail'}>
-            <span className="log__actor">[{entry.actor}]</span> {entry.tool}
-            <span className="log__detail">{entry.detail}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
 export default function App() {
   const status = useWorkbench((s) => s.rdkitStatus)
   const focusSmiles = useWorkbench((s) => s.focus?.properties.canonicalSmiles ?? null)
@@ -762,46 +776,52 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <h1>Analog</h1>
-        <div className="topbar__status">
-          <Badge label={rdkitLabel} tone={status === 'ready' ? 'ok' : status === 'error' ? 'bad' : 'wait'} />
-          <Badge
-            label={tools.length ? tools.length + ' tools registered' : 'WebMCP unavailable'}
-            tone={tools.length ? 'ok' : 'bad'}
-          />
-        </div>
-      </header>
-
-      {status === 'loading' && (
-        <div className="splash">
-          <div className="spinner" />
-          <p>Loading the RDKit WebAssembly build (6.9 MB). One time only, it caches after this.</p>
-        </div>
-      )}
-      {status === 'error' && <p className="error">RDKit failed to load: {rdkitError}</p>}
-      {mcpError && (
-        <p className="warn">
-          {mcpError} Expected tools: {TOOL_NAMES.join(', ')}.
-        </p>
-      )}
-
-      {status === 'ready' && (
-        <main className="grid">
-          <div className="column">
-            <FocusPanel />
-            <ScaffoldPanel />
-            <ConstraintPanel />
+      <Sidebar />
+      <div className="app__main">
+        <header className="app__header">
+          <div className="topbar">
+            <h1>ANALOG Molecule Design</h1>
+            <div className="topbar__status">
+              <Badge label={rdkitLabel} tone={status === 'ready' ? 'ok' : status === 'error' ? 'bad' : 'wait'} />
+              <Badge
+                label={tools.length ? tools.length + ' tools connected' : 'WebMCP unavailable'}
+                tone={tools.length ? 'ok' : 'bad'}
+              />
+            </div>
           </div>
-          <Board />
-          <div className="column">
-            {focusSmiles && <Viewer3D key={focusSmiles} smiles={focusSmiles} />}
-            <AccuracyLedger />
-            <Lineage />
-            <CallLog />
-          </div>
-        </main>
-      )}
+        </header>
+
+        <div className="app__content">
+          {status === 'loading' && (
+            <div className="splash">
+              <div className="spinner" />
+              <p>Loading the RDKit WebAssembly build (6.9 MB). One time only, it caches after this.</p>
+            </div>
+          )}
+          {status === 'error' && <p className="error">RDKit failed to load: {rdkitError}</p>}
+          {mcpError && (
+            <p className="warn">
+              {mcpError} Expected tools: {TOOL_NAMES.join(', ')}.
+            </p>
+          )}
+
+          {status === 'ready' && (
+            <main className="grid">
+              <div className="column">
+                <FocusPanel />
+                <ScaffoldPanel />
+                <ConstraintPanel />
+              </div>
+              <Board />
+              <div className="column">
+                {focusSmiles && <Viewer3D key={focusSmiles} smiles={focusSmiles} />}
+                <AccuracyLedger />
+                <Lineage />
+              </div>
+            </main>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

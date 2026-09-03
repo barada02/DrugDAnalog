@@ -53,6 +53,7 @@ export function Viewer3D({ smiles }: { smiles: string }) {
   const [status, setStatus] = useState<Status>(() => (knownConformer(smiles) ? 'ready' : 'idle'))
   const [conformer, setConformer] = useState<Conformer | null>(() => knownConformer(smiles))
   const [error, setError] = useState<string | null>(null)
+  const [showInfo, setShowInfo] = useState(false)
   const note = useWorkbench((s) => s.note)
 
   // Derived, not synchronised. The caller remounts this on a new molecule with
@@ -62,10 +63,32 @@ export function Viewer3D({ smiles }: { smiles: string }) {
     [conformer],
   )
 
+  // Auto-fetch 3D coordinates when component mounts and no cached conformer exists
+  useEffect(() => {
+    if (status !== 'idle' || knownConformer(smiles)) return
+    const autoFetch = async () => {
+      setStatus('working')
+      setError(null)
+      const controller = new AbortController()
+      try {
+        const result = await fetchConformer(smiles, controller.signal)
+        rememberConformer(smiles, result)
+        setConformer(result)
+        setStatus('ready')
+        note({ actor: 'human', tool: 'fetch_3d', detail: `auto-fetched via ${result.source}`, ok: true })
+      } catch (e) {
+        setError((e as Error).message)
+        setStatus('error')
+        note({ actor: 'human', tool: 'fetch_3d', detail: `auto-fetch failed: ${(e as Error).message}`, ok: false })
+      }
+    }
+    autoFetch()
+  }, [smiles, status, note])
+
   // Draw whenever we have both a conformer and somewhere to put it.
   useEffect(() => {
     if (status !== 'ready' || !conformer || !mount.current || !window.$3Dmol) return
-    const viewer = window.$3Dmol.createViewer(mount.current, { backgroundColor: '#0c0e12' })
+    const viewer = window.$3Dmol.createViewer(mount.current, { backgroundColor: 'white' })
     viewer.addModel(conformer.sdf, 'sdf')
     viewer.setStyle({}, { stick: { radius: 0.14 }, sphere: { scale: 0.24 } })
     viewer.zoomTo()
@@ -95,24 +118,39 @@ export function Viewer3D({ smiles }: { smiles: string }) {
 
   return (
     <section className="panel">
-      <h2>3D structure</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 style={{ margin: 0 }}>3D structure</h2>
+        <button
+          className="info-btn"
+          title="About 3D coordinates"
+          onClick={() => setShowInfo(!showInfo)}
+          style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            fontSize: '14px',
+          }}
+        >
+          ℹ
+        </button>
+      </div>
 
-      {status === 'idle' && (
-        <>
-          <p className="hint">
-            RDKit cannot generate 3D coordinates in the browser, so they have to be
-            fetched. <strong>This sends the structure to a public NIH service</strong>{' '}
-            (CACTUS, falling back to PubChem). Everything else in this app stays on your
-            machine.
-          </p>
-          <button onClick={() => void fetchIt()}>Fetch 3D coordinates</button>
-        </>
+      {showInfo && (
+        <p className="hint" style={{ marginBottom: '12px' }}>
+          RDKit cannot generate 3D coordinates in the browser, so they are automatically fetched from a public NIH service (CACTUS, falling back to PubChem). Everything else stays on your machine.
+        </p>
       )}
 
       {status === 'working' && (
         <div className="splash splash--inline">
           <div className="spinner" />
-          <p>Requesting a conformer and loading the viewer.</p>
+          <p>Generating 3D structure...</p>
         </div>
       )}
 
