@@ -129,8 +129,8 @@ function calculateNetBrainPenetration(pgpProbability: number): number {
 
 function generatePGpConcern(
   substrate: PGpProfile['substrate'],
-  score: number,
-  props: Properties,
+  _score: number,
+  _props: Properties,
 ): string {
   if (substrate === 'high affinity') {
     return `⚠️ Strong P-gp substrate—will be actively exported from brain despite BBB crossing. Net brain penetration severely reduced.`

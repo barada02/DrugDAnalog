@@ -155,7 +155,7 @@ function getCYP2C9Reason(props: Properties, likelihood: number): string {
   return 'Possible CYP2C9 substrate'
 }
 
-function getCYP2C19Reason(props: Properties, likelihood: number): string {
+function getCYP2C19Reason(_props: Properties, likelihood: number): string {
   if (likelihood < 30) return 'Low probability for CYP2C19'
   return 'Possible CYP2C19 substrate (less selective)'
 }
