@@ -957,6 +957,21 @@ select:focus {
   min-width: 0;
 }
 
+/* The starting molecule opens the same panel its analogs do. */
+.focus__figurebtn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.focus__figurebtn:hover .depiction {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
 .focus__detail {
   min-width: 0;
 }

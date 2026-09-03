@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useWorkbench } from '../store/workbench'
+import { FOCUS_INSPECT_ID, useWorkbench } from '../store/workbench'
 import type { Candidate, Molecule } from '../store/workbench'
 import type { Properties } from '../chem/properties'
 import { measureFor } from '../chem/measures'
@@ -133,7 +133,9 @@ function CurrentFocusPanel({
   const p = focus.properties
 
   const compareWithStart = () => {
-    const first = nodes.find((n) => n.candidateId)
+    // The start node carries the focus sentinel rather than a candidate id, and
+    // the Compare tray only understands real candidates.
+    const first = nodes.find((n) => n.candidateId && n.candidateId !== FOCUS_INSPECT_ID)
     setCompareIds(first?.candidateId ? [first.candidateId] : [])
     setPage('compare')
   }
@@ -289,7 +291,9 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
         properties: focus.properties,
         status: 'Current focus',
         tone: 'accent',
-        candidateId: null,
+        // The sentinel, so clicking the start node opens the focus molecule in
+        // the same panel a candidate would use.
+        candidateId: FOCUS_INSPECT_ID,
       } as Node,
       ...explored.map(
         (entry) =>

@@ -1,4 +1,4 @@
-import { useWorkbench } from '../store/workbench'
+import { FOCUS_INSPECT_ID, useWorkbench } from '../store/workbench'
 import { buildLedger } from '../chem/ledger'
 import { diversity } from '../chem/similarity'
 import { rankLabel, type Ranked } from '../chem/ranking'
@@ -77,6 +77,7 @@ export function OverviewPage({ ranked }: { ranked: Ranked[] }) {
   const goal = useWorkbench((s) => s.goal)
   const shortlist = useWorkbench((s) => s.shortlist)
   const setPage = useWorkbench((s) => s.setPage)
+  const inspect = useWorkbench((s) => s.inspect)
   const name = usePresetName(focus?.properties.canonicalSmiles ?? null)
 
   const pending = candidates.filter((c) => c.status === 'pending').length
@@ -99,7 +100,14 @@ export function OverviewPage({ ranked }: { ranked: Ranked[] }) {
           {focus ? (
             <div className="focus__body">
               <div className="focus__figure">
-                <Depiction svg={focus.svg} size="md" />
+                <button
+                  className="focus__figurebtn"
+                  onClick={() => inspect(FOCUS_INSPECT_ID)}
+                  title="Inspect the focus molecule"
+                  aria-label="Inspect the focus molecule"
+                >
+                  <Depiction svg={focus.svg} size="md" />
+                </button>
               </div>
               <div className="focus__detail">
                 <h3 className="focus__name">{name ?? 'Custom molecule'}</h3>

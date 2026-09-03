@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useWorkbench } from '../store/workbench'
+import { FOCUS_INSPECT_ID, useWorkbench } from '../store/workbench'
 import { PRESETS } from '../chem/properties'
 import { GROUPS } from '../chem/groups'
 import { CONSTRAINT_PRESETS, describeConstraint } from '../chem/constraints'
@@ -248,6 +248,7 @@ function FocusSection() {
   const goal = useWorkbench((s) => s.goal)
   const constraints = useWorkbench((s) => s.constraints)
   const scaffold = useWorkbench((s) => s.scaffold)
+  const inspect = useWorkbench((s) => s.inspect)
   const name = usePresetName(focus?.properties.canonicalSmiles ?? null)
   const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -269,6 +270,9 @@ function FocusSection() {
   return (
     <section className="surface focus">
       <SectionHead title="Focus molecule">
+        <button className="btn btn--outline" onClick={() => inspect(FOCUS_INSPECT_ID)}>
+          Inspect
+        </button>
         <button className="btn btn--outline" onClick={() => setPicking((v) => !v)}>
           {picking ? 'Cancel' : 'Change molecule'}
         </button>
@@ -278,7 +282,14 @@ function FocusSection() {
 
       <div className="focus__body">
         <div className="focus__figure">
-          <Depiction svg={focus.svg} size="lg" />
+          <button
+            className="focus__figurebtn"
+            onClick={() => inspect(FOCUS_INSPECT_ID)}
+            title="Inspect the focus molecule"
+            aria-label="Inspect the focus molecule"
+          >
+            <Depiction svg={focus.svg} size="lg" />
+          </button>
           {focus.scaffoldMatch?.matched && (
             <p className="hint hint--mark">
               Shaded: the pinned group
@@ -510,7 +521,12 @@ function EvolutionStrip({ ranked }: { ranked: Ranked[] }) {
         </button>
       </SectionHead>
       <div className="strip">
-        <MiniMolecule svg={focus.svg} title="Focus molecule" subtitle="Starting point" />
+        <MiniMolecule
+          svg={focus.svg}
+          title="Focus molecule"
+          subtitle="Starting point"
+          onClick={() => inspect(FOCUS_INSPECT_ID)}
+        />
         {chain.map((entry) => (
           <div key={entry.candidate.id} className="strip__step">
             <span className="strip__arrow" aria-hidden="true">

@@ -154,6 +154,13 @@ type WorkbenchActions = {
 /** The compare table stops being readable past five columns plus the focus. */
 export const MAX_COMPARE = 5
 
+/**
+ * Stands in for the focus molecule in `inspectId`, which otherwise only ever
+ * holds a candidate id. Cannot collide: candidate ids come from
+ * crypto.randomUUID().
+ */
+export const FOCUS_INSPECT_ID = '__focus__'
+
 const id = () => crypto.randomUUID()
 
 /** Tolerances above which a prediction counts as wrong. */

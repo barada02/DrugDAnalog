@@ -6,7 +6,7 @@ import { rankCandidates, type SortKey } from './chem/ranking'
 import { useWorkbench } from './store/workbench'
 import { AppShell } from './ui/AppShell'
 import { DeveloperTrace } from './ui/DeveloperTrace'
-import { CandidateInspector } from './ui/CandidateInspector'
+import { Inspector } from './ui/Inspector'
 import { DesignPage } from './pages/DesignPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { ExplorePage } from './pages/ExplorePage'
@@ -84,7 +84,7 @@ export default function App() {
     <AppShell
       tools={tools.length}
       agentReady={tools.length > 0 && status === 'ready'}
-      drawer={status === 'ready' ? <CandidateInspector ranked={ranked} /> : null}
+      drawer={status === 'ready' ? <Inspector ranked={ranked} /> : null}
     >
       {status === 'loading' && (
         <div className="splash">
