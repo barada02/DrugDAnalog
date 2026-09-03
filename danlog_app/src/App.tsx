@@ -358,15 +358,17 @@ function FocusPanel() {
   const focus = useWorkbench((s) => s.focus)
   const setFocus = useWorkbench((s) => s.setFocus)
   const note = useWorkbench((s) => s.note)
-  const [draft, setDraft] = useState(PRESETS[0].smiles)
+  const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loadedName, setLoadedName] = useState<string | null>(null)
 
-  const load = async (smiles: string) => {
-    setDraft(smiles)
+  const load = async (smiles: string, presetName?: string) => {
+    setDraft('') // Clear input after loading
     try {
       await setFocus(smiles)
       setError(null)
-      note({ actor: 'human', tool: 'set_focus_molecule', detail: smiles, ok: true })
+      setLoadedName(presetName || null) // Track if it's a preset
+      note({ actor: 'human', tool: 'set_focus_molecule', detail: presetName || smiles, ok: true })
     } catch (e) {
       setError((e as Error).message)
     }
@@ -392,7 +394,11 @@ function FocusPanel() {
       </form>
       <div className="presets">
         {PRESETS.map((preset) => (
-          <button key={preset.name} className="chip" onClick={() => void load(preset.smiles)}>
+          <button
+            key={preset.name}
+            className={`chip${loadedName === preset.name ? ' chip--on' : ''}`}
+            onClick={() => void load(preset.smiles, preset.name)}
+          >
             {preset.name}
           </button>
         ))}
@@ -400,6 +406,11 @@ function FocusPanel() {
       {error && <p className="error">{error}</p>}
       {focus && (
         <>
+          <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '6px', marginBottom: '12px' }}>
+            <p style={{ margin: '0 0 6px 0', fontSize: '12px', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Currently loaded</p>
+            <p style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 'bold' }}>{loadedName || 'Custom molecule'}</p>
+            <code style={{ fontSize: '12px', opacity: 0.8, wordBreak: 'break-all' }}>{focus.properties.canonicalSmiles}</code>
+          </div>
           <div className="depiction" dangerouslySetInnerHTML={{ __html: focus.svg }} />
           {focus.scaffoldMatch?.matched && (
             <p className="hint hint--mark">
