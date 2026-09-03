@@ -563,6 +563,26 @@ function Board() {
                   tone={candidate.scaffoldOk ? 'ok' : 'bad'}
                 />
               )}
+              <Badge
+                label={`SAScore: ${candidate.properties.saScore}`}
+                tone={
+                  candidate.properties.saScore <= 3
+                    ? 'ok'
+                    : candidate.properties.saScore <= 6.5
+                      ? 'wait'
+                      : 'bad'
+                }
+              />
+              <Badge
+                label={`HIA: ${candidate.properties.hiaScore}%`}
+                tone={
+                  candidate.properties.hiaScore >= 70
+                    ? 'ok'
+                    : candidate.properties.hiaScore >= 40
+                      ? 'wait'
+                      : 'bad'
+                }
+              />
             </header>
             <div
               className="depiction depiction--sm"
