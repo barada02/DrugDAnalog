@@ -1994,6 +1994,15 @@ select:focus {
   border-radius: var(--radius-sm);
 }
 
+/* Coordinates are here but the render bundle has not landed yet. Shown inside
+   the box so the panel does not jump when the molecule appears. */
+.viewer3d__pending {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
 .viewer3d__bar {
   display: flex;
   align-items: center;

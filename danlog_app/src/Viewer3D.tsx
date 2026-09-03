@@ -34,15 +34,22 @@ declare global {
 /** 538 KB, so it loads on opt-in only and never enters the main bundle. */
 let viewerLibrary: Promise<void> | null = null
 function loadViewerLibrary(): Promise<void> {
-  viewerLibrary ??= new Promise((resolve, reject) => {
-    if (window.$3Dmol) return resolve()
-    const script = document.createElement('script')
-    script.src = '/vendor/3Dmol-min.js'
-    script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Could not load the 3D viewer bundle.'))
-    document.head.appendChild(script)
-  })
+  if (!viewerLibrary) {
+    viewerLibrary = new Promise<void>((resolve, reject) => {
+      if (window.$3Dmol) return resolve()
+      const script = document.createElement('script')
+      script.src = '/vendor/3Dmol-min.js'
+      script.async = true
+      script.onload = () => resolve()
+      script.onerror = () => reject(new Error('Could not load the 3D viewer bundle.'))
+      document.head.appendChild(script)
+    }).catch((error: Error) => {
+      // Clear the cache so a retry can try again. Holding a rejected promise
+      // here would make "Try again" permanently useless.
+      viewerLibrary = null
+      throw error
+    })
+  }
   return viewerLibrary
 }
 
@@ -71,6 +78,7 @@ export function Viewer3D({
   // state is what re-triggers the draw once the bundle lands -- without it a
   // cached conformer renders into an empty box.
   const [libReady, setLibReady] = useState(() => Boolean(window.$3Dmol))
+  const [libError, setLibError] = useState<string | null>(null)
   const note = useWorkbench((s) => s.note)
 
   // Derived, not synchronised. The caller remounts this on a new molecule with
@@ -94,37 +102,54 @@ export function Viewer3D({
     onShapeRef.current?.(shape)
   }, [shape])
 
+  /**
+   * The viewer bundle, fetched alongside the coordinates rather than before
+   * them. Keeping the two independent means a slow script cannot hold up a
+   * conformer that has already arrived.
+   */
   useEffect(() => {
+    if (libReady) return
     let cancelled = false
     loadViewerLibrary()
-      .then(() => !cancelled && setLibReady(true))
-      .catch(() => {
-        /* surfaced by the fetch paths below */
+      .then(() => {
+        if (!cancelled) setLibReady(true)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setLibError(e.message)
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [libReady])
 
-  // Auto-fetch 3D coordinates when component mounts and no cached conformer exists
+  /**
+   * Coordinates for this molecule.
+   *
+   * Keyed on the molecule ALONE. `status` must stay out of the dependency
+   * list: the first thing this does is set it, so including it makes the
+   * effect tear itself down mid-flight, abort its own request, and then bail
+   * on the re-run -- leaving a spinner that never resolves.
+   */
   useEffect(() => {
-    if (status !== 'idle' || knownConformer(smiles)) return
+    if (knownConformer(smiles)) return
     let cancelled = false
     const controller = new AbortController()
-    const autoFetch = async () => {
+
+    const run = async () => {
       setStatus('working')
       setError(null)
       try {
-        const [, result] = await Promise.all([
-          loadViewerLibrary(),
-          fetchConformer(smiles, controller.signal),
-        ])
+        const result = await fetchConformer(smiles, controller.signal)
         if (cancelled) return
         rememberConformer(smiles, result)
         setConformer(result)
-        setLibReady(true)
         setStatus('ready')
-        note({ actor: 'human', tool: 'fetch_3d', detail: `auto-fetched via ${result.source}`, ok: true })
+        note({
+          actor: 'human',
+          tool: 'fetch_3d',
+          detail: `auto-fetched via ${result.source}`,
+          ok: true,
+        })
       } catch (e) {
         if (cancelled) return
         setError((e as Error).message)
@@ -137,12 +162,13 @@ export function Viewer3D({
         })
       }
     }
-    void autoFetch()
+
+    void run()
     return () => {
       cancelled = true
       controller.abort()
     }
-  }, [smiles, status, note])
+  }, [smiles, note])
 
   // Draw whenever we have both a conformer and somewhere to put it.
   useEffect(() => {
@@ -164,18 +190,19 @@ export function Viewer3D({
     viewer.current?.render()
   }, [])
 
-  const fetchIt = async () => {
+  const retry = async () => {
     setStatus('working')
     setError(null)
+    setLibError(null)
+    // Nudge the bundle again; its own effect handles the happy path.
+    loadViewerLibrary()
+      .then(() => setLibReady(true))
+      .catch((e: Error) => setLibError(e.message))
     const controller = new AbortController()
     try {
-      const [, result] = await Promise.all([
-        loadViewerLibrary(),
-        fetchConformer(smiles, controller.signal),
-      ])
+      const result = await fetchConformer(smiles, controller.signal)
       rememberConformer(smiles, result)
       setConformer(result)
-      setLibReady(true)
       setStatus('ready')
       note({ actor: 'human', tool: 'fetch_3d', detail: `${smiles} via ${result.source}`, ok: true })
     } catch (e) {
@@ -198,20 +225,29 @@ export function Viewer3D({
       {status === 'working' && (
         <div className="splash splash--inline">
           <div className="spinner" />
-          <p>Generating 3D structure…</p>
+          <p>Fetching 3D coordinates…</p>
         </div>
       )}
 
       {status === 'error' && (
         <>
           <p className="error">{error}</p>
-          <button onClick={() => void fetchIt()}>Try again</button>
+          <button className="btn" onClick={() => void retry()}>
+            Try again
+          </button>
         </>
       )}
 
       {status === 'ready' && conformer && (
         <>
-          <div className="viewer3d" ref={mount} />
+          <div className="viewer3d" ref={mount}>
+            {!libReady && !libError && (
+              <div className="viewer3d__pending">
+                <div className="spinner" />
+              </div>
+            )}
+          </div>
+          {libError && <p className="error">{libError}</p>}
           <div className="viewer3d__bar">
             <span className="hint hint--mark">Drag to rotate · Scroll to zoom</span>
             <button className="linkbtn" onClick={resetView}>
