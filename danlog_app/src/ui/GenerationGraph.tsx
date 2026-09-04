@@ -193,9 +193,15 @@ export function GenerationGraph(props: {
 }) {
   return (
     <div className="graph">
-      <ReactFlowProvider>
-        <Flow {...props} />
-      </ReactFlowProvider>
+      {/* React Flow ships no size or position for its root element, so the
+          canvas needs an explicitly sized, positioned box of its own. Without
+          it the flow collapses and its background layer, which sits at
+          z-index -1, paints behind the page instead of inside the graph. */}
+      <div className="graph__canvas">
+        <ReactFlowProvider>
+          <Flow {...props} />
+        </ReactFlowProvider>
+      </div>
       <p className="hint">
         Scroll to zoom · drag the background to pan · click a molecule to inspect it
       </p>

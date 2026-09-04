@@ -2969,12 +2969,28 @@ button.mini:hover {
   position: relative;
 }
 
-/* React Flow needs a definite height; the canvas has no intrinsic size. */
-.graph .react-flow {
+/* React Flow's stylesheet gives its root element no width, height, position
+   or overflow -- it expects the page to provide a sized container. This is
+   that container. */
+.graph__canvas {
+  position: relative;
+  width: 100%;
   height: 620px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
   background: var(--surface-sunk);
+  overflow: hidden;
+}
+
+.graph .react-flow {
+  width: 100%;
+  height: 100%;
+  /* position + z-index together make a stacking context, which is what keeps
+     the background layer (z-index: -1) inside the graph rather than behind
+     the surrounding card. */
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
 }
 
 .graph .react-flow__background {

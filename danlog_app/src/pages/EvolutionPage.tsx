@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { FOCUS_INSPECT_ID, buildMolecule, useWorkbench } from '../store/workbench'
 import type { Candidate, Molecule } from '../store/workbench'
 import type { Properties } from '../chem/properties'
@@ -9,7 +9,7 @@ import { EmptyState, Metric, SectionHead, StatusBadge } from '../ui/primitives'
 import { DeltaValue, Depiction } from '../ui/molecule'
 import { LineChart, SERIES_COLORS, Sparkline, type LineSeries } from '../ui/charts'
 import { shortName } from '../ui/CandidateCard'
-import { buildGraph } from '../ui/graph-tree'
+import { buildGraph, type GraphNode } from '../ui/graph-tree'
 
 /**
  * React Flow and its stylesheet are ~58 KB gzipped and are used on this page
@@ -195,6 +195,81 @@ function GenerationTree({
 
   const root = useMemo(() => buildGraph(candidates), [candidates])
 
+  /**
+   * Memoised because the graph lays out from it. An inline arrow here would
+   * rebuild every card on every render, remounting the molecule drawings and
+   * throwing away the layout each time.
+   */
+  const renderNode = useCallback(
+    (node: GraphNode) => {
+      if (!node.candidate) {
+        // The origin is rebuilt from its SMILES when it is no longer the
+        // focus, so it shows a structure and real numbers like every other
+        // node rather than an apology for missing data.
+        if (!origin) {
+          return (
+            <div className="evonode evonode--origin evonode--ghost">
+              <span className="evonode__top">
+                <span className="evonode__rank">Start</span>
+              </span>
+              <code className="smiles">{originSmiles ?? 'starting molecule'}</code>
+              <span className="evonode__stat evonode__stat--muted">Working it out…</span>
+            </div>
+          )
+        }
+
+        const body = (
+          <>
+            <span className="evonode__top">
+              <span className="evonode__rank">Start</span>
+              {originIsFocus && (
+                <span className="evonode__mark evonode__mark--focus">● focus</span>
+              )}
+            </span>
+            <Depiction svg={origin.svg} size="xs" />
+            <span className="evonode__name">Starting molecule</span>
+            <span className="evonode__stat">logS {origin.properties.logS}</span>
+            {origin.constraints.total > 0 && (
+              <span
+                className={
+                  'evonode__goals' + (origin.constraints.allMet ? ' evonode__goals--met' : '')
+                }
+              >
+                {origin.constraints.satisfied}/{origin.constraints.total} goals
+              </span>
+            )}
+          </>
+        )
+
+        // Only the focus molecule has somewhere to open; a superseded origin
+        // is shown but not clickable, rather than clicking into nothing.
+        return originIsFocus ? (
+          <button
+            className="evonode evonode--origin evonode--focus"
+            onClick={() => inspect(FOCUS_INSPECT_ID)}
+          >
+            {body}
+          </button>
+        ) : (
+          <div className="evonode evonode--origin evonode--static">{body}</div>
+        )
+      }
+
+      const c = node.candidate
+      return (
+        <EvoNode
+          candidate={c}
+          label={rankOf(c)}
+          promoted={promotedIds.has(c.id)}
+          isFocus={focusId === c.id}
+          starred={shortlist.includes(c.id)}
+          focus={focus}
+        />
+      )
+    },
+    [origin, originSmiles, originIsFocus, inspect, rankOf, promotedIds, focusId, shortlist, focus],
+  )
+
   return (
     <Suspense
       fallback={
@@ -204,74 +279,7 @@ function GenerationTree({
         </div>
       }
     >
-    <GenerationGraph
-      root={root}
-      promotedIds={promotedIds}
-      renderNode={(node) => {
-        if (!node.candidate) {
-          // The origin is rebuilt from its SMILES when it is no longer the
-          // focus, so it shows a structure and real numbers like every other
-          // node rather than an apology for missing data.
-          if (!origin) {
-            return (
-              <div className="evonode evonode--origin evonode--ghost">
-                <span className="evonode__top">
-                  <span className="evonode__rank">Start</span>
-                </span>
-                <code className="smiles">{originSmiles ?? 'starting molecule'}</code>
-                <span className="evonode__stat evonode__stat--muted">Working it out…</span>
-              </div>
-            )
-          }
-
-          const body = (
-            <>
-              <span className="evonode__top">
-                <span className="evonode__rank">Start</span>
-                {originIsFocus && <span className="evonode__mark evonode__mark--focus">● focus</span>}
-              </span>
-              <Depiction svg={origin.svg} size="xs" />
-              <span className="evonode__name">Starting molecule</span>
-              <span className="evonode__stat">logS {origin.properties.logS}</span>
-              {origin.constraints.total > 0 && (
-                <span
-                  className={
-                    'evonode__goals' + (origin.constraints.allMet ? ' evonode__goals--met' : '')
-                  }
-                >
-                  {origin.constraints.satisfied}/{origin.constraints.total} goals
-                </span>
-              )}
-            </>
-          )
-
-          // Only the focus molecule has somewhere to open; a superseded origin
-          // is shown but not clickable, rather than clicking into nothing.
-          return originIsFocus ? (
-            <button
-              className="evonode evonode--origin evonode--focus"
-              onClick={() => inspect(FOCUS_INSPECT_ID)}
-            >
-              {body}
-            </button>
-          ) : (
-            <div className="evonode evonode--origin evonode--static">{body}</div>
-          )
-        }
-
-        const c = node.candidate
-        return (
-          <EvoNode
-            candidate={c}
-            label={rankOf(c)}
-            promoted={promotedIds.has(c.id)}
-            isFocus={focusId === c.id}
-            starred={shortlist.includes(c.id)}
-            focus={focus}
-          />
-        )
-      }}
-    />
+      <GenerationGraph root={root} promotedIds={promotedIds} renderNode={renderNode} />
     </Suspense>
   )
 }
@@ -586,10 +594,13 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
     () => new Map(ranked.map((r) => [r.candidate.id, r])),
     [ranked],
   )
-  const rankOf = (c: Candidate) => {
-    const hit = rankMap.get(c.id)
-    return hit ? `Candidate ${rankLabel(hit.rank)}` : 'Candidate'
-  }
+  const rankOf = useCallback(
+    (c: Candidate) => {
+      const hit = rankMap.get(c.id)
+      return hit ? `Candidate ${rankLabel(hit.rank)}` : 'Candidate'
+    },
+    [rankMap],
+  )
 
   // The labeller is inlined rather than passed in, so the memo depends on the
   // map it actually reads instead of on a function identity.
