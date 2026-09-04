@@ -1,6 +1,6 @@
 import { useWorkbench } from '../store/workbench'
 import { PRESETS } from '../chem/properties'
-import { NOT_COMPUTABLE, TIER_ABOUT } from '../chem/measures'
+import { TIER_ABOUT } from '../chem/measures'
 import { download, toCsv, toSmiles } from '../chem/export'
 import { SectionHead, StatusBadge, Row } from '../ui/primitives'
 import { TierLegend } from '../ui/molecule'
@@ -11,6 +11,8 @@ export function SettingsPage({ tools }: { tools: string[] }) {
   const candidates = useWorkbench((s) => s.candidates)
   const reset = useWorkbench((s) => s.reset)
   const setTraceOpen = useWorkbench((s) => s.setTraceOpen)
+  const iupacLookup = useWorkbench((s) => s.iupacLookup)
+  const setIupacLookup = useWorkbench((s) => s.setIupacLookup)
 
   return (
     <div className="page">
@@ -45,9 +47,34 @@ export function SettingsPage({ tools }: { tools: string[] }) {
         <SectionHead title="Privacy" />
         <p className="hint">
           Every calculation on this page runs locally in your browser through RDKit compiled to
-          WebAssembly. The one exception is 3D coordinates, which are fetched per molecule from a
-          public NIH service (CACTUS, falling back to PubChem) when you open the Synthesis tab.
-          Nothing else is sent anywhere, and the session is stored only in this browser's
+          WebAssembly. Two things are exceptions, and both send the structure to a public NIH
+          service (CACTUS, falling back to PubChem for coordinates):
+        </p>
+        <Row label="3D coordinates">
+          Fetched per molecule when a structure is shown in 3D. RDKit's browser build cannot
+          generate conformers, so there is no local alternative.
+        </Row>
+        <Row label="Systematic names">
+          Fetched per molecule to name cards and headings. Naming is a rule engine that does not
+          ship to WebAssembly. Optional — turn it off below and no structure is sent for naming.
+        </Row>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={iupacLookup}
+            onChange={(e) => setIupacLookup(e.target.checked)}
+          />
+          <span>
+            Look up systematic names
+            <em>
+              {iupacLookup
+                ? 'On — each new molecule is sent once per session.'
+                : 'Off — cards fall back to the agent’s own description.'}
+            </em>
+          </span>
+        </label>
+        <p className="hint">
+          Nothing else leaves the browser, and the session is stored only in this browser's
           localStorage.
         </p>
       </section>
@@ -100,81 +127,3 @@ export function SettingsPage({ tools }: { tools: string[] }) {
   )
 }
 
-export function HelpPage() {
-  const setPage = useWorkbench((s) => s.setPage)
-
-  return (
-    <div className="page">
-      <div className="pagehead">
-        <h1>Help</h1>
-        <p>How this workbench is meant to be used.</p>
-      </div>
-
-      <section className="surface">
-        <SectionHead title="The loop" />
-        <ol className="steps">
-          <li>
-            <strong>Set a focus molecule.</strong> The thing you are improving on. Pick a preset or
-            paste a SMILES on the{' '}
-            <button className="linkbtn" onClick={() => setPage('design')}>
-              Design page
-            </button>
-            .
-          </li>
-          <li>
-            <strong>State the brief.</strong> A design goal in plain words, a target profile of
-            numeric constraints, and any group you insist on preserving.
-          </li>
-          <li>
-            <strong>Let the agent propose.</strong> It can only ever create proposals. Nothing
-            becomes the focus molecule without you clicking.
-          </li>
-          <li>
-            <strong>Inspect and compare.</strong> The card says why a candidate is interesting; the
-            drawer holds the evidence; Compare puts them side by side.
-          </li>
-          <li>
-            <strong>Make focus molecule.</strong> That advances the design and starts the next
-            generation. Evolution records the path.
-          </li>
-        </ol>
-      </section>
-
-      <section className="surface">
-        <SectionHead title="Ask your agent for" />
-        <ul className="steps">
-          <li>
-            <em>Propose three more soluble paracetamol analogs, and predict logP before you
-            compute it.</em>
-          </li>
-          <li>
-            <em>Keep the amide. Anything that loses it is a failed proposal.</em>
-          </li>
-          <li>
-            <em>Which of these is easiest to actually make?</em>
-          </li>
-        </ul>
-        <p className="hint">
-          Asking for a prediction before the measurement is what fills the prediction ledger on
-          the Overview page. It is the only honest way to find out whether the agent's chemistry
-          intuition is any good.
-        </p>
-      </section>
-
-      <section className="surface">
-        <SectionHead title="What this app will not do" />
-        <p className="hint">
-          These need a lab, a protein structure, or a trained model. Asking for them returns a
-          refusal rather than a number, on purpose.
-        </p>
-        <div className="notcomputable">
-          {Object.entries(NOT_COMPUTABLE).map(([key, why]) => (
-            <Row key={key} label={key}>
-              {why}
-            </Row>
-          ))}
-        </div>
-      </section>
-    </div>
-  )
-}

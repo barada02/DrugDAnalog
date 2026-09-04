@@ -60,6 +60,17 @@ const NAV: { id: Page; label: string; icon: ReactNode }[] = [
       </>
     ),
   },
+  {
+    id: 'report',
+    label: 'Report',
+    icon: (
+      <>
+        <path d="M6.5 2.75h7.5l4 4v14.5h-11.5Z" />
+        <path d="M14 2.75v4.5h4.5" />
+        <path d="M9.5 12.5h6M9.5 16h4" />
+      </>
+    ),
+  },
 ]
 
 const FOOT: { id: Page; label: string; icon: ReactNode }[] = [
@@ -68,8 +79,8 @@ const FOOT: { id: Page; label: string; icon: ReactNode }[] = [
     label: 'Settings',
     icon: (
       <>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3" />
+        <circle cx="12" cy="12" r="3.1" />
+        <path d="M19.1 14.6a1.5 1.5 0 0 0 .3 1.66l.05.05a1.83 1.83 0 1 1-2.59 2.59l-.05-.05a1.5 1.5 0 0 0-1.66-.3 1.5 1.5 0 0 0-.91 1.38v.14a1.83 1.83 0 1 1-3.66 0v-.07a1.5 1.5 0 0 0-.98-1.38 1.5 1.5 0 0 0-1.66.3l-.05.05a1.83 1.83 0 1 1-2.59-2.59l.05-.05a1.5 1.5 0 0 0 .3-1.66 1.5 1.5 0 0 0-1.38-.91h-.14a1.83 1.83 0 1 1 0-3.66h.07a1.5 1.5 0 0 0 1.38-.98 1.5 1.5 0 0 0-.3-1.66l-.05-.05a1.83 1.83 0 1 1 2.59-2.59l.05.05a1.5 1.5 0 0 0 1.66.3h.07a1.5 1.5 0 0 0 .91-1.38v-.14a1.83 1.83 0 1 1 3.66 0v.07a1.5 1.5 0 0 0 .91 1.38 1.5 1.5 0 0 0 1.66-.3l.05-.05a1.83 1.83 0 1 1 2.59 2.59l-.05.05a1.5 1.5 0 0 0-.3 1.66v.07a1.5 1.5 0 0 0 1.38.91h.14a1.83 1.83 0 1 1 0 3.66h-.07a1.5 1.5 0 0 0-1.38.91Z" />
       </>
     ),
   },
@@ -124,23 +135,6 @@ function Sidebar() {
 
   return (
     <nav className="nav" aria-label="Sections">
-      <div className="nav__brand">
-        <svg className="nav__logo" viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 2.6 20.4 7.3v9.4L12 21.4 3.6 16.7V7.3Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinejoin="round"
-          />
-          <circle cx="12" cy="12" r="2.6" fill="currentColor" />
-        </svg>
-        <span className="nav__brandtext">
-          <strong>ANALOG</strong>
-          <em>Molecule Design</em>
-        </span>
-      </div>
-
       <div className="nav__group">
         {NAV.map((item) => (
           <NavButton
@@ -230,10 +224,19 @@ function ProjectMenu() {
 
 function TopBar({ tools, agentReady }: { tools: number; agentReady: boolean }) {
   const setTraceOpen = useWorkbench((s) => s.setTraceOpen)
+  const setPage = useWorkbench((s) => s.setPage)
   const logCount = useWorkbench((s) => s.log.length)
 
   return (
     <header className="topbar">
+      <button
+        className="brandmark"
+        onClick={() => setPage('overview')}
+        title="Overview"
+        aria-label="ANALOG — go to Overview"
+      >
+        <img src="/wordmark.png" alt="ANALOG" />
+      </button>
       <ProjectMenu />
       <div className="topbar__right">
         <span className={'agent' + (agentReady ? ' agent--ok' : ' agent--bad')}>

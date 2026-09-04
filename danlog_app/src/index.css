@@ -1,4 +1,7 @@
 /* Base reset only. Component styling lives in App.css. */
 :root {
-  color-scheme: dark;
+  /* The workspace is a light theme. Declaring it stops the browser handing
+     form controls, buttons and scrollbars their dark-mode defaults -- which
+     is what made unstyled text inside a <button> render white on white. */
+  color-scheme: light;
 }

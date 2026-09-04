@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { Shape } from '../chem/shape'
-import { useWorkbench, type InspectTab } from '../store/workbench'
+import { FOCUS_INSPECT_ID, useWorkbench, type InspectTab } from '../store/workbench'
 import type { Candidate, Molecule } from '../store/workbench'
+import { usePresetName } from './usePresetName'
+import { useIupacName } from './useIupacName'
 import type { Properties } from '../chem/properties'
 import { deltaFor, displayStatus } from '../chem/ranking'
 import type { Ranked } from '../chem/ranking'
@@ -27,11 +29,28 @@ import { Viewer3D } from '../Viewer3D'
 /**
  * The inspection drawer.
  *
- * Everything the old candidate card carried lives here now: the full property
+ * Everything the old candidate card carried lives here: the full property
  * grid, the rule verdicts, the alerts, the scorecard, the constraint report.
  * Moving it off the card is what lets the card answer one question -- why is
  * this worth my attention -- instead of forty.
+ *
+ * It inspects the focus molecule too. Judging whether a candidate's shape or
+ * rule profile is an improvement is impossible if the thing being improved on
+ * is the one molecule you cannot open.
  */
+
+/**
+ * What the tabs actually need. A Candidate and a focus Molecule both satisfy
+ * this, which is what lets one panel serve both without either pretending to
+ * be the other.
+ */
+type Inspectable = {
+  properties: Properties
+  rules: Candidate['rules']
+  profile: Candidate['profile']
+  constraints: Candidate['constraints']
+  svg: string
+}
 
 const TABS: { key: InspectTab; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -150,47 +169,102 @@ function OverviewTab({ ranked, focus }: { ranked: Ranked; focus: Molecule | null
   )
 }
 
-function PropertiesTab({ candidate }: { candidate: Candidate }) {
+/**
+ * The focus molecule has no parent to be compared against and no prediction
+ * to be scored, so its Overview answers the question that is actually open:
+ * where does the starting point already stand against the brief.
+ */
+function FocusOverviewTab({ focus }: { focus: Molecule }) {
+  const scaffold = useWorkbench((s) => s.scaffold)
+  const p = focus.properties
+
+  return (
+    <>
+      <Warnings p={p} />
+
+      {scaffold && focus.scaffoldMatch?.matched === false && (
+        <p className="warn">
+          This molecule does not contain the pinned {scaffold.label}, so every candidate will fail
+          the check. Pin something the starting molecule actually has.
+        </p>
+      )}
+
+      <section className="drawer__section">
+        <h3>Key measures</h3>
+        <div className="metrics">
+          <Metric label="MW" value={p.mw} />
+          <Metric label="LogP" value={p.logP} />
+          <Metric label="TPSA" value={p.tpsa} />
+          <Metric label="logS" value={p.logS} />
+          <Metric label="SA" value={p.saScore} />
+          <Metric label="HIA" value={p.hiaScore} unit="%" />
+        </div>
+        <p className="hint">
+          These are the baseline every candidate's arrows are measured from.
+        </p>
+      </section>
+
+      <section className="drawer__section">
+        <h3>Drug-likeness</h3>
+        <RulePills report={focus.rules} />
+      </section>
+
+      <ConstraintChecks report={focus.constraints} />
+      <Alerts properties={p} profile={focus.profile} />
+
+      {!focus.rules.passes && <p className="violations">{focus.rules.violations.join(' / ')}</p>}
+    </>
+  )
+}
+
+function PropertiesTab({ subject }: { subject: Inspectable }) {
   return (
     <>
       <section className="drawer__section">
         <h3>All measures</h3>
-        <PropertyGrid p={candidate.properties} />
+        <PropertyGrid p={subject.properties} />
         <TierLegend />
       </section>
 
       <section className="drawer__section">
         <h3>Solubility</h3>
         <p className="hint">
-          {candidate.properties.logS} log mol/L (about {candidate.properties.solubilityMgPerL}{' '}
-          mg/L) &mdash; {candidate.properties.solubilityBand}. Estimated, so treat it as a
-          direction of travel, not a measurement.
+          {subject.properties.logS} log mol/L (about {subject.properties.solubilityMgPerL} mg/L)
+          &mdash; {subject.properties.solubilityBand}. Estimated, so treat it as a direction of
+          travel, not a measurement.
         </p>
       </section>
 
       <section className="drawer__section">
         <h3>Functional groups</h3>
-        <Groups groups={candidate.profile.groups} />
-        {candidate.profile.groups.length === 0 && (
+        <Groups groups={subject.profile.groups} />
+        {subject.profile.groups.length === 0 && (
           <p className="hint">No catalogued groups matched.</p>
         )}
       </section>
 
       <section className="drawer__section">
         <h3>Rulesets</h3>
-        <Rules report={candidate.rules} />
+        <Rules report={subject.rules} />
       </section>
 
       <section className="drawer__section">
         <h3>SMILES</h3>
-        <code className="smiles">{candidate.properties.canonicalSmiles}</code>
+        <code className="smiles">{subject.properties.canonicalSmiles}</code>
       </section>
     </>
   )
 }
 
-function PredictionsTab({ candidate }: { candidate: Candidate }) {
-  const p = candidate.properties
+function PredictionsTab({
+  subject,
+  candidate,
+}: {
+  subject: Inspectable
+  /** Null for the focus molecule: nothing predicted it, so nothing to score. */
+  candidate: Candidate | null
+}) {
+  const p = subject.properties
   return (
     <>
       <section className="drawer__section">
@@ -216,22 +290,24 @@ function PredictionsTab({ candidate }: { candidate: Candidate }) {
         <Row label="Half-life">{p.halfLifeCategory}</Row>
       </section>
 
-      <section className="drawer__section">
-        <h3>Agent accuracy on this molecule</h3>
-        {candidate.scorecard.length === 0 ? (
-          <p className="hint">
-            No prediction was stated before the oracle ran. Ask the agent for predicted_mw,
-            predicted_logp and predicted_tpsa when it proposes, and its claim gets checked here.
-          </p>
-        ) : (
-          <Scorecard candidate={candidate} />
-        )}
-      </section>
+      {candidate && (
+        <section className="drawer__section">
+          <h3>Agent accuracy on this molecule</h3>
+          {candidate.scorecard.length === 0 ? (
+            <p className="hint">
+              No prediction was stated before the oracle ran. Ask the agent for predicted_mw,
+              predicted_logp and predicted_tpsa when it proposes, and its claim gets checked here.
+            </p>
+          ) : (
+            <Scorecard candidate={candidate} />
+          )}
+        </section>
+      )}
 
       <section className="drawer__section">
         <h3>Alerts</h3>
-        <Alerts properties={p} profile={candidate.profile} />
-        {candidate.profile.alerts.length === 0 && (
+        <Alerts properties={p} profile={subject.profile} />
+        {subject.profile.alerts.length === 0 && (
           <p className="hint">No structural alerts matched.</p>
         )}
       </section>
@@ -239,8 +315,8 @@ function PredictionsTab({ candidate }: { candidate: Candidate }) {
   )
 }
 
-function SynthesisTab({ candidate, shape }: { candidate: Candidate; shape: Shape | null }) {
-  const sa = candidate.properties.saScore
+function SynthesisTab({ subject, shape }: { subject: Inspectable; shape: Shape | null }) {
+  const sa = subject.properties.saScore
   const severity = getSASeverity(sa)
 
   return (
@@ -271,16 +347,16 @@ function SynthesisTab({ candidate, shape }: { candidate: Candidate; shape: Shape
       <section className="drawer__section">
         <h3>Complexity drivers</h3>
         <div className="metrics">
-          <Metric label="Rings" value={candidate.properties.rings} />
-          <Metric label="Ar. rings" value={candidate.properties.aromaticRings} />
-          <Metric label="Fsp3" value={candidate.properties.fsp3} title="Fraction of sp3 carbons" />
-          <Metric label="Heavy atoms" value={candidate.properties.heavyAtoms} />
+          <Metric label="Rings" value={subject.properties.rings} />
+          <Metric label="Ar. rings" value={subject.properties.aromaticRings} />
+          <Metric label="Fsp3" value={subject.properties.fsp3} title="Fraction of sp3 carbons" />
+          <Metric label="Heavy atoms" value={subject.properties.heavyAtoms} />
           <Metric
             label="Stereocentres"
-            value={candidate.properties.undefinedStereocentres}
+            value={subject.properties.undefinedStereocentres}
             title="Undefined stereocentres"
           />
-          <Metric label="RotB" value={candidate.properties.rotatableBonds} />
+          <Metric label="RotB" value={subject.properties.rotatableBonds} />
         </div>
       </section>
 
@@ -325,38 +401,64 @@ function SynthesisTab({ candidate, shape }: { candidate: Candidate; shape: Shape
   )
 }
 
-function NotesTab({ candidate }: { candidate: Candidate }) {
+function NotesTab({
+  candidate,
+  noteKey,
+}: {
+  candidate: Candidate | null
+  /** Candidate id, or the focus sentinel, so notes survive tab switches. */
+  noteKey: string
+}) {
   const notes = useWorkbench((s) => s.candidateNotes)
   const setCandidateNote = useWorkbench((s) => s.setCandidateNote)
   const scaffold = useWorkbench((s) => s.scaffold)
+  const goal = useWorkbench((s) => s.goal)
 
   return (
     <>
       <section className="drawer__section">
-        <h3>Agent rationale</h3>
-        {candidate.rationale ? (
-          <p className="rationale rationale--full">{candidate.rationale}</p>
+        <h3>{candidate ? 'Agent rationale' : 'Design goal'}</h3>
+        {candidate ? (
+          candidate.rationale ? (
+            <p className="rationale rationale--full">{candidate.rationale}</p>
+          ) : (
+            <p className="hint">The agent proposed this without stating a reason.</p>
+          )
+        ) : goal ? (
+          <p className="rationale rationale--full">{goal}</p>
         ) : (
-          <p className="hint">The agent proposed this without stating a reason.</p>
+          <p className="hint">No design goal set. Every candidate is judged on rules alone.</p>
         )}
       </section>
 
       <section className="drawer__section">
         <h3>Provenance</h3>
-        <Row label="Proposed by">{candidate.source}</Row>
-        <Row label="Created">{new Date(candidate.createdAt).toLocaleString()}</Row>
-        {candidate.decidedAt && (
-          <Row label="Decided">{new Date(candidate.decidedAt).toLocaleString()}</Row>
-        )}
-        {candidate.similarityToParent !== null && (
-          <Row label="Similarity to parent">
-            {candidate.similarityToParent} · {band(candidate.similarityToParent)}
-          </Row>
-        )}
-        {scaffold && (
-          <Row label={`${scaffold.label} preserved`}>
-            {candidate.scaffoldOk === null ? '—' : candidate.scaffoldOk ? 'yes' : 'no'}
-          </Row>
+        {candidate ? (
+          <>
+            <Row label="Proposed by">{candidate.source}</Row>
+            <Row label="Created">{new Date(candidate.createdAt).toLocaleString()}</Row>
+            {candidate.decidedAt && (
+              <Row label="Decided">{new Date(candidate.decidedAt).toLocaleString()}</Row>
+            )}
+            {candidate.similarityToParent !== null && (
+              <Row label="Similarity to parent">
+                {candidate.similarityToParent} · {band(candidate.similarityToParent)}
+              </Row>
+            )}
+            {scaffold && (
+              <Row label={`${scaffold.label} preserved`}>
+                {candidate.scaffoldOk === null ? '—' : candidate.scaffoldOk ? 'yes' : 'no'}
+              </Row>
+            )}
+          </>
+        ) : (
+          <>
+            <Row label="Role">Starting point for this series</Row>
+            {scaffold && <Row label="Pinned group">{scaffold.label}</Row>}
+            <p className="hint">
+              Loaded by you rather than proposed, so there is no agent claim to check against it.
+            </p>
+          </>
         )}
       </section>
 
@@ -364,19 +466,17 @@ function NotesTab({ candidate }: { candidate: Candidate }) {
         <h3>Your notes</h3>
         <textarea
           className="notes"
-          value={notes[candidate.id] ?? ''}
+          value={notes[noteKey] ?? ''}
           placeholder="What you want to remember about this molecule…"
-          onChange={(e) => setCandidateNote(candidate.id, e.target.value)}
+          onChange={(e) => setCandidateNote(noteKey, e.target.value)}
         />
-        <p className="hint">
-          Kept for this session only, and never shown to the agent.
-        </p>
+        <p className="hint">Kept for this session only, and never shown to the agent.</p>
       </section>
     </>
   )
 }
 
-export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
+export function Inspector({ ranked }: { ranked: Ranked[] }) {
   const inspectId = useWorkbench((s) => s.inspectId)
   const inspect = useWorkbench((s) => s.inspect)
   const tab = useWorkbench((s) => s.inspectTab)
@@ -384,6 +484,7 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
   const focus = useWorkbench((s) => s.focus)
   const focusId = useWorkbench((s) => s.focusId)
   const decide = useWorkbench((s) => s.decide)
+  const removeCandidate = useWorkbench((s) => s.remove)
   const promote = useWorkbench((s) => s.promote)
   const note = useWorkbench((s) => s.note)
   const shortlist = useWorkbench((s) => s.shortlist)
@@ -395,7 +496,15 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
 
   const entry = ranked.find((r) => r.candidate.id === inspectId) ?? null
   const candidate = entry?.candidate ?? null
-  const smiles = candidate?.properties.canonicalSmiles ?? ''
+  // The focus molecule is inspectable on the same terms as its analogs. It is
+  // not a Candidate -- no rank, no rationale, nothing predicted it -- so the
+  // tabs take the fields both actually share.
+  const focusSubject = inspectId === FOCUS_INSPECT_ID ? focus : null
+  const subject: Inspectable | null = candidate ?? focusSubject
+  const smiles = subject?.properties.canonicalSmiles ?? ''
+  const noteKey = candidate?.id ?? FOCUS_INSPECT_ID
+  const presetName = usePresetName(smiles || null)
+  const iupac = useIupacName(smiles || null)
 
   /**
    * Shape is lifted out of the viewer so the Synthesis tab can show the
@@ -442,54 +551,119 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
     inspect(null)
   }
 
-  // Nothing selected, or the selection was cleared by a board reset.
-  if (!entry || !candidate) return null
+  const destroy = () => {
+    if (!candidate) return
+    const children = ranked.filter((r) => r.candidate.parentId === candidate.id).length
+    const ok = confirm(
+      'Delete this candidate permanently?\n\n' +
+        `${candidate.properties.canonicalSmiles}\n\n` +
+        'Rejecting keeps it on the board as a decision you made and can be undone. ' +
+        'Deleting cannot.' +
+        (children > 0
+          ? `\n\n${children} candidate${children === 1 ? '' : 's'} designed from it will be ` +
+            'kept and reattached to its parent.'
+          : ''),
+    )
+    if (!ok) return
+    removeCandidate(candidate.id)
+    note({
+      actor: 'human',
+      tool: 'delete_candidate',
+      detail: candidate.properties.canonicalSmiles,
+      ok: true,
+    })
+  }
 
-  const isFocus = focusId === candidate.id
-  const starred = shortlist.includes(candidate.id)
-  const status = displayStatus(candidate, starred)
+  // Nothing selected, or the selection was cleared by a board reset.
+  if (!subject) return null
+
+  const isFocus = candidate !== null && focusId === candidate.id
+  const starred = candidate !== null && shortlist.includes(candidate.id)
+  const rejected = candidate?.status === 'rejected'
 
   return (
     <Drawer
       open
       variant="docked"
       onClose={() => inspect(null)}
-      title={`Candidate ${String(entry.rank).padStart(2, '0')}`}
+      title={
+        candidate && entry ? `Candidate ${String(entry.rank).padStart(2, '0')}` : 'Focus molecule'
+      }
       badge={
-        entry.label ? (
-          <StatusBadge label={entry.label} tone="accent" />
+        candidate && entry ? (
+          entry.label ? (
+            <StatusBadge label={entry.label} tone="accent" />
+          ) : (
+            <StatusBadge
+              label={displayStatus(candidate, starred)}
+              tone={rejected ? 'bad' : 'neutral'}
+            />
+          )
         ) : (
-          <StatusBadge label={status} tone={candidate.status === 'rejected' ? 'bad' : 'neutral'} />
+          <StatusBadge label="Starting point" tone="accent" />
         )
       }
       subtitle={
-        <>
-          <p className="drawer__name">{candidate.rationale || 'Proposed analog'}</p>
-          <p className="drawer__headline">{entry.headline}</p>
-        </>
+        candidate && entry ? (
+          <>
+            <p className="drawer__name">{iupac ?? candidate.rationale ?? 'Proposed analog'}</p>
+            <p className="drawer__headline">{entry.headline}</p>
+          </>
+        ) : (
+          <>
+            <p className="drawer__name">{presetName ?? iupac ?? 'Custom molecule'}</p>
+            <p className="drawer__headline">
+              The molecule every candidate on this board is measured against.
+            </p>
+          </>
+        )
       }
       footer={
-        <>
-          <button
-            className="btn btn--primary"
-            onClick={() => void makeFocus()}
-            disabled={isFocus}
-          >
-            {isFocus ? '✓ Current focus molecule' : '✓ Make focus molecule'}
-          </button>
-          <button className="btn btn--ghost" onClick={() => toggleShortlist(candidate.id)}>
-            {starred ? '★ Shortlisted' : '☆ Shortlist'}
-          </button>
-          {candidate.status !== 'rejected' ? (
-            <button className="btn btn--danger" onClick={() => judge('rejected')}>
-              ⊘ Reject
+        candidate ? (
+          <div className="drawer__actions">
+            <button
+              className="btn btn--primary"
+              onClick={() => void makeFocus()}
+              disabled={isFocus}
+            >
+              {isFocus ? '✓ Current focus molecule' : '✓ Make focus molecule'}
             </button>
-          ) : (
-            <button className="btn btn--ghost" onClick={() => judge('accepted')}>
-              Restore
-            </button>
-          )}
-        </>
+            <div className="drawer__actionrow">
+              {/* Approving without promoting. Accepting says the idea is sound;
+                  making it the focus says the next generation comes from it. */}
+              {candidate.status === 'pending' && (
+                <button className="btn btn--ok" onClick={() => judge('accepted')}>
+                  ✓ Accept
+                </button>
+              )}
+              {candidate.status === 'accepted' && !isFocus && (
+                <span className="drawer__accepted" title="Approved, but not the focus molecule">
+                  ✓ Accepted
+                </span>
+              )}
+              <button className="btn btn--ghost" onClick={() => toggleShortlist(candidate.id)}>
+                {starred ? '★' : '☆'} Shortlist
+              </button>
+              {!rejected ? (
+                <button className="btn btn--danger" onClick={() => judge('rejected')}>
+                  ⊘ Reject
+                </button>
+              ) : (
+                <button className="btn btn--ghost" onClick={() => judge('accepted')}>
+                  Restore
+                </button>
+              )}
+              <button
+                className="btn btn--icon btn--danger"
+                onClick={destroy}
+                title="Delete permanently"
+                aria-label="Delete permanently"
+              >
+                🗑
+              </button>
+            </div>
+          </div>
+        ) : undefined
       }
     >
       <div className="hero">
@@ -511,7 +685,7 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
         </div>
 
         {view === '3d' ? (
-          // Keyed by molecule: a new candidate gets a fresh fetch and a fresh
+          // Keyed by molecule: a new subject gets a fresh fetch and a fresh
           // viewer rather than the previous molecule's coordinates.
           <Viewer3D
             key={smiles}
@@ -521,18 +695,23 @@ export function CandidateInspector({ ranked }: { ranked: Ranked[] }) {
             onShape={(next) => setShapeOf({ smiles, shape: next })}
           />
         ) : (
-          <Depiction svg={candidate.svg} size="lg" faded={candidate.status === 'rejected'} />
+          <Depiction svg={subject.svg} size="lg" faded={rejected} />
         )}
       </div>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
       <div className="drawer__panel">
-        {tab === 'overview' && <OverviewTab ranked={entry} focus={focus} />}
-        {tab === 'properties' && <PropertiesTab candidate={candidate} />}
-        {tab === 'predictions' && <PredictionsTab candidate={candidate} />}
-        {tab === 'synthesis' && <SynthesisTab candidate={candidate} shape={shape} />}
-        {tab === 'notes' && <NotesTab candidate={candidate} />}
+        {tab === 'overview' &&
+          (candidate && entry ? (
+            <OverviewTab ranked={entry} focus={focus} />
+          ) : focusSubject ? (
+            <FocusOverviewTab focus={focusSubject} />
+          ) : null)}
+        {tab === 'properties' && <PropertiesTab subject={subject} />}
+        {tab === 'predictions' && <PredictionsTab subject={subject} candidate={candidate} />}
+        {tab === 'synthesis' && <SynthesisTab subject={subject} shape={shape} />}
+        {tab === 'notes' && <NotesTab candidate={candidate} noteKey={noteKey} />}
       </div>
     </Drawer>
   )

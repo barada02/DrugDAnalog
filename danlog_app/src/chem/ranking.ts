@@ -172,11 +172,40 @@ export type LabelKey = 'balance' | 'solubility' | 'threeD' | 'scaffold' | 'absor
 
 export type Highlight = { text: string; tone: 'good' | 'warn' | 'neutral' }
 
+/**
+ * How many promotions deep each candidate sits.
+ *
+ * Generation 1 is everything designed straight off the molecule that started
+ * the board; each promotion adds a level. Shared rather than recomputed per
+ * page so the tag on a card and the column on the Evolution tree can never
+ * disagree about which generation a molecule belongs to.
+ */
+export function generationMap(candidates: Candidate[]): Map<string, number> {
+  const byId = new Map(candidates.map((c) => [c.id, c]))
+  const depth = new Map<string, number>()
+
+  const depthOf = (c: Candidate): number => {
+    const known = depth.get(c.id)
+    if (known !== undefined) return known
+    // Provisional value doubles as the cycle guard.
+    depth.set(c.id, 1)
+    const parent = c.parentId ? byId.get(c.parentId) : undefined
+    const resolved = parent ? depthOf(parent) + 1 : 1
+    depth.set(c.id, resolved)
+    return resolved
+  }
+
+  candidates.forEach(depthOf)
+  return depth
+}
+
 export type Ranked = {
   candidate: Candidate
   scores: Scores
   /** 1-based position in the current sort. Displayed as 01, 02, ... */
   rank: number
+  /** Promotions deep. 1 means designed straight off the starting molecule. */
+  generation: number
   /** "Best balance" and friends, or null when nothing distinguishes it. */
   label: string | null
   labelKey: LabelKey | null
@@ -265,6 +294,7 @@ export function rankCandidates(
   focus: Molecule | null,
   sort: SortKey = 'overall',
 ): Ranked[] {
+  const generations = generationMap(candidates)
   const scored = candidates.map((candidate) => ({
     candidate,
     scores: scoreCandidate(candidate, focus),
@@ -348,6 +378,7 @@ export function rankCandidates(
     return {
       ...entry,
       rank: i + 1,
+      generation: generations.get(entry.candidate.id) ?? 1,
       labelKey,
       label: labelKey ? LABEL_TEXT[labelKey] : null,
       headline: headlineFor(labelKey, entry.scores, entry.candidate),

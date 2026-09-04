@@ -6,13 +6,15 @@ import { rankCandidates, type SortKey } from './chem/ranking'
 import { useWorkbench } from './store/workbench'
 import { AppShell } from './ui/AppShell'
 import { DeveloperTrace } from './ui/DeveloperTrace'
-import { CandidateInspector } from './ui/CandidateInspector'
+import { Inspector } from './ui/Inspector'
 import { DesignPage } from './pages/DesignPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { ExplorePage } from './pages/ExplorePage'
 import { ComparePage } from './pages/ComparePage'
 import { EvolutionPage } from './pages/EvolutionPage'
-import { HelpPage, SettingsPage } from './pages/MiscPages'
+import { ReportPage } from './pages/ReportPage'
+import { SettingsPage } from './pages/MiscPages'
+import { HelpPage } from './pages/HelpPage'
 import './App.css'
 
 /** Why WebMCP is not usable here, or null if it is. Read once, at render. */
@@ -84,7 +86,7 @@ export default function App() {
     <AppShell
       tools={tools.length}
       agentReady={tools.length > 0 && status === 'ready'}
-      drawer={status === 'ready' ? <CandidateInspector ranked={ranked} /> : null}
+      drawer={status === 'ready' ? <Inspector ranked={ranked} /> : null}
     >
       {status === 'loading' && (
         <div className="splash">
@@ -112,6 +114,7 @@ export default function App() {
           {page === 'explore' && <ExplorePage ranked={ranked} sort={sort} setSort={setSort} />}
           {page === 'compare' && <ComparePage ranked={ranked} />}
           {page === 'evolution' && <EvolutionPage ranked={ranked} />}
+          {page === 'report' && <ReportPage ranked={ranked} />}
           {page === 'settings' && <SettingsPage tools={tools} />}
           {page === 'help' && <HelpPage />}
         </>

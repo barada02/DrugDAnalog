@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useWorkbench } from '../store/workbench'
+import { FOCUS_INSPECT_ID, useWorkbench } from '../store/workbench'
 import { PRESETS } from '../chem/properties'
 import { GROUPS } from '../chem/groups'
 import { CONSTRAINT_PRESETS, describeConstraint } from '../chem/constraints'
@@ -20,6 +20,8 @@ import {
 } from '../ui/molecule'
 import { CandidateCard, MiniMolecule, shortName } from '../ui/CandidateCard'
 import { usePresetName } from '../ui/usePresetName'
+import { useGroupPresence } from '../ui/useGroupPresence'
+import { useIupacName } from '../ui/useIupacName'
 
 /**
  * The Design page: the whole point of the application.
@@ -96,6 +98,7 @@ function ScaffoldControls() {
   const note = useWorkbench((s) => s.note)
   const [custom, setCustom] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const presence = useGroupPresence(focus?.properties.canonicalSmiles ?? null)
 
   const pin = async (label: string, smarts: string, about: string) => {
     setError(null)
@@ -120,19 +123,31 @@ function ScaffoldControls() {
       <h4>Preserve</h4>
       <p className="hint">
         Pin a group and it must survive every proposal. Each candidate is checked, and the agent
-        is told when it broke the promise.
+        is told when it broke the promise. Only the groups this molecule actually has can be
+        pinned &mdash; pinning an absent one would fail every candidate by construction.
       </p>
       <div className="chips">
-        {GROUPS.map((group) => (
-          <button
-            key={group.label}
-            className={'chip' + (scaffold?.smarts === group.smarts ? ' chip--on' : '')}
-            title={group.about}
-            onClick={() => void pin(group.label, group.smarts, group.about)}
-          >
-            {group.label}
-          </button>
-        ))}
+        {GROUPS.map((group) => {
+          // Null while the match is still running: everything stays enabled
+          // rather than flickering disabled and back.
+          const absent = presence !== null && presence[group.label] === false
+          return (
+            <button
+              key={group.label}
+              className={
+                'chip' +
+                (scaffold?.smarts === group.smarts ? ' chip--on' : '') +
+                (absent ? ' chip--absent' : '') +
+                (!absent && presence !== null ? ' chip--present' : '')
+              }
+              disabled={absent}
+              title={absent ? `${group.label} is not in this molecule` : group.about}
+              onClick={() => void pin(group.label, group.smarts, group.about)}
+            >
+              {group.label}
+            </button>
+          )
+        })}
         {scaffold && (
           <button className="chip chip--clear" onClick={() => void clear()}>
             clear
@@ -248,7 +263,9 @@ function FocusSection() {
   const goal = useWorkbench((s) => s.goal)
   const constraints = useWorkbench((s) => s.constraints)
   const scaffold = useWorkbench((s) => s.scaffold)
+  const inspect = useWorkbench((s) => s.inspect)
   const name = usePresetName(focus?.properties.canonicalSmiles ?? null)
+  const iupac = useIupacName(focus?.properties.canonicalSmiles ?? null)
   const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState(false)
   const [showAll, setShowAll] = useState(false)
@@ -269,6 +286,9 @@ function FocusSection() {
   return (
     <section className="surface focus">
       <SectionHead title="Focus molecule">
+        <button className="btn btn--outline" onClick={() => inspect(FOCUS_INSPECT_ID)}>
+          Inspect
+        </button>
         <button className="btn btn--outline" onClick={() => setPicking((v) => !v)}>
           {picking ? 'Cancel' : 'Change molecule'}
         </button>
@@ -278,7 +298,14 @@ function FocusSection() {
 
       <div className="focus__body">
         <div className="focus__figure">
-          <Depiction svg={focus.svg} size="lg" />
+          <button
+            className="focus__figurebtn"
+            onClick={() => inspect(FOCUS_INSPECT_ID)}
+            title="Inspect the focus molecule"
+            aria-label="Inspect the focus molecule"
+          >
+            <Depiction svg={focus.svg} size="lg" />
+          </button>
           {focus.scaffoldMatch?.matched && (
             <p className="hint hint--mark">
               Shaded: the pinned group
@@ -290,7 +317,7 @@ function FocusSection() {
         </div>
 
         <div className="focus__detail">
-          <h3 className="focus__name">{name ?? 'Custom molecule'}</h3>
+          <h3 className="focus__name">{name ?? iupac ?? 'Custom molecule'}</h3>
           <code className="smiles">{p.canonicalSmiles}</code>
 
           <div className="metrics metrics__inline">
@@ -304,6 +331,13 @@ function FocusSection() {
               {showAll ? 'Hide properties' : 'View all properties'}
             </button>
           </div>
+
+          {focus.profile.groups.length > 0 && (
+            <div className="focus__groups">
+              <h4>Groups present</h4>
+              <Groups groups={focus.profile.groups} />
+            </div>
+          )}
 
           <div className="brief">
             <div className="brief__col">
@@ -510,7 +544,12 @@ function EvolutionStrip({ ranked }: { ranked: Ranked[] }) {
         </button>
       </SectionHead>
       <div className="strip">
-        <MiniMolecule svg={focus.svg} title="Focus molecule" subtitle="Starting point" />
+        <MiniMolecule
+          svg={focus.svg}
+          title="Focus molecule"
+          subtitle="Starting point"
+          onClick={() => inspect(FOCUS_INSPECT_ID)}
+        />
         {chain.map((entry) => (
           <div key={entry.candidate.id} className="strip__step">
             <span className="strip__arrow" aria-hidden="true">

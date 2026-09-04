@@ -12,6 +12,7 @@ import { profile } from '../chem/profile'
 import type { Profile } from '../chem/profile'
 import { checkConstraints } from '../chem/constraints'
 import type { Constraint, ConstraintReport } from '../chem/constraints'
+import type { Report, ReportSection } from '../chem/report'
 
 /**
  * The part of the molecule the human has told everyone to leave alone.
@@ -60,7 +61,15 @@ export type Candidate = {
 export type CandidateStatus = 'pending' | 'accepted' | 'rejected'
 
 /** Which workspace the human is looking at. Purely presentational. */
-export type Page = 'overview' | 'design' | 'explore' | 'compare' | 'evolution' | 'settings' | 'help'
+export type Page =
+  | 'overview'
+  | 'design'
+  | 'explore'
+  | 'compare'
+  | 'evolution'
+  | 'report'
+  | 'settings'
+  | 'help'
 
 /** Tabs inside the inspection drawer. */
 export type InspectTab = 'overview' | 'properties' | 'predictions' | 'synthesis' | 'notes'
@@ -116,6 +125,17 @@ type WorkbenchState = {
   candidateNotes: Record<string, string>
   /** Whether the developer/agent trace panel is open. */
   traceOpen: boolean
+  /**
+   * Whether to ask a public service for systematic names. Off means no
+   * structure is sent anywhere for naming. Session-only, like the rest of this
+   * block, so it never silently persists a choice about the network.
+   */
+  iupacLookup: boolean
+  /**
+   * The one report draft. Reports are an output you download, not state you
+   * accumulate, so a new one replaces the old rather than joining a list.
+   */
+  report: Report | null
 }
 
 type WorkbenchActions = {
@@ -131,6 +151,11 @@ type WorkbenchActions = {
     source: 'human' | 'agent'
   }) => Promise<Candidate>
   decide: (id: string, status: Exclude<CandidateStatus, 'pending'>) => void
+  /**
+   * Take a candidate off the board for good. Rejecting keeps a decision on the
+   * record; this is for things that should never have been there.
+   */
+  remove: (id: string) => void
   /** Make an accepted candidate the focus, recording it as the parent of what follows. */
   promote: (id: string) => Promise<Molecule>
   /** Rebuild a saved session. Returns false when there was nothing to restore. */
@@ -149,10 +174,25 @@ type WorkbenchActions = {
   toggleShortlist: (id: string) => void
   setCandidateNote: (id: string, text: string) => void
   setTraceOpen: (open: boolean) => void
+  setIupacLookup: (on: boolean) => void
+
+  /** Replaces the draft outright. The agent drafts; only a human downloads. */
+  setReport: (report: Report | null) => void
+  editSection: (id: string, patch: Partial<ReportSection>) => void
+  removeSection: (id: string) => void
+  moveSection: (id: string, direction: -1 | 1) => void
+  setReportMeta: (meta: { title?: string; subtitle?: string }) => void
 }
 
 /** The compare table stops being readable past five columns plus the focus. */
 export const MAX_COMPARE = 5
+
+/**
+ * Stands in for the focus molecule in `inspectId`, which otherwise only ever
+ * holds a candidate id. Cannot collide: candidate ids come from
+ * crypto.randomUUID().
+ */
+export const FOCUS_INSPECT_ID = '__focus__'
 
 const id = () => crypto.randomUUID()
 
@@ -221,6 +261,8 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   shortlist: [],
   candidateNotes: {},
   traceOpen: false,
+  iupacLookup: true,
+  report: null,
 
   setRdkitStatus: (rdkitStatus, rdkitError = undefined) =>
     set({ rdkitStatus, rdkitError: rdkitError ?? null }),
@@ -309,6 +351,31 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       ),
     })),
 
+  /**
+   * Children are spliced onto the removed candidate's own parent rather than
+   * deleted with it or left pointing at nothing. Losing one idea should not
+   * silently orphan the work that came after it, and a dangling parentId would
+   * make a whole branch look like it started from the root.
+   */
+  remove: (id) =>
+    set((state) => {
+      const victim = state.candidates.find((c) => c.id === id)
+      if (!victim) return {}
+      const inherited = victim.parentId
+      const { [id]: _removed, ...candidateNotes } = state.candidateNotes
+      return {
+        candidates: state.candidates
+          .filter((c) => c.id !== id)
+          .map((c) => (c.parentId === id ? { ...c, parentId: inherited } : c)),
+        candidateNotes,
+        compareIds: state.compareIds.filter((c) => c !== id),
+        shortlist: state.shortlist.filter((s) => s !== id),
+        inspectId: state.inspectId === id ? null : state.inspectId,
+        // The molecule stays in focus; it just stops being a board candidate.
+        focusId: state.focusId === id ? null : state.focusId,
+      }
+    }),
+
   promote: async (candidateId) => {
     const candidate = get().candidates.find((c) => c.id === candidateId)
     if (!candidate) throw new Error(`No candidate with id ${candidateId}`)
@@ -383,6 +450,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       compareIds: [],
       shortlist: [],
       candidateNotes: {},
+      report: null,
     })
   },
 
@@ -422,6 +490,51 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
     set((state) => ({ candidateNotes: { ...state.candidateNotes, [id]: text } })),
 
   setTraceOpen: (traceOpen) => set({ traceOpen }),
+
+  setIupacLookup: (iupacLookup) => set({ iupacLookup }),
+
+  setReport: (report) => set({ report }),
+
+  editSection: (id, patch) =>
+    set((state) =>
+      state.report
+        ? {
+            report: {
+              ...state.report,
+              sections: state.report.sections.map((s) =>
+                s.id === id ? ({ ...s, ...patch } as ReportSection) : s,
+              ),
+            },
+          }
+        : {},
+    ),
+
+  removeSection: (id) =>
+    set((state) =>
+      state.report
+        ? {
+            report: {
+              ...state.report,
+              sections: state.report.sections.filter((s) => s.id !== id),
+            },
+          }
+        : {},
+    ),
+
+  moveSection: (id, direction) =>
+    set((state) => {
+      if (!state.report) return {}
+      const sections = [...state.report.sections]
+      const from = sections.findIndex((s) => s.id === id)
+      const to = from + direction
+      if (from < 0 || to < 0 || to >= sections.length) return {}
+      const [moved] = sections.splice(from, 1)
+      sections.splice(to, 0, moved)
+      return { report: { ...state.report, sections } }
+    }),
+
+  setReportMeta: (meta) =>
+    set((state) => (state.report ? { report: { ...state.report, ...meta } } : {})),
 }))
 
 /**

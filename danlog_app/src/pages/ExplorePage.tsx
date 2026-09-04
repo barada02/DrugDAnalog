@@ -37,14 +37,23 @@ export function ExplorePage({
 
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<StatusFilter>('all')
+  const [generation, setGeneration] = useState<number | 'all'>('all')
   const [rulesOnly, setRulesOnly] = useState(false)
   const [goalsOnly, setGoalsOnly] = useState(false)
   const [keptOnly, setKeptOnly] = useState(false)
   const [maxSa, setMaxSa] = useState(10)
 
+  /** Only the generations that actually exist get a chip. */
+  const generations = useMemo(
+    () => [...new Set(ranked.map((r) => r.generation))].sort((a, b) => a - b),
+    [ranked],
+  )
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return ranked.filter(({ candidate }) => {
+    return ranked.filter((entry) => {
+      const { candidate } = entry
+      if (generation !== 'all' && entry.generation !== generation) return false
       if (needle) {
         const hay = (
           candidate.properties.canonicalSmiles +
@@ -62,7 +71,7 @@ export function ExplorePage({
       if (candidate.properties.saScore > maxSa) return false
       return true
     })
-  }, [ranked, query, status, rulesOnly, goalsOnly, keptOnly, maxSa, shortlist])
+  }, [ranked, query, status, generation, rulesOnly, goalsOnly, keptOnly, maxSa, shortlist])
 
   return (
     <div className="page">
@@ -106,6 +115,34 @@ export function ExplorePage({
               </button>
             ))}
           </div>
+
+          {generations.length > 1 && (
+            <div className="chips">
+              <button
+                className={'chip' + (generation === 'all' ? ' chip--on' : '')}
+                onClick={() => setGeneration('all')}
+              >
+                All generations
+              </button>
+              {generations.map((g) => (
+                <button
+                  key={g}
+                  className={'chip' + (generation === g ? ' chip--on' : '')}
+                  onClick={() => setGeneration(g)}
+                  title={
+                    g === 1
+                      ? 'Designed from the starting molecule'
+                      : `${g - 1} promotion${g === 2 ? '' : 's'} deep`
+                  }
+                >
+                  Gen {g}
+                  <span className="chip__count">
+                    {ranked.filter((r) => r.generation === g).length}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="filters__toggles">
             <label>
@@ -176,6 +213,7 @@ export function ExplorePage({
               onClick={() => {
                 setQuery('')
                 setStatus('all')
+                setGeneration('all')
                 setRulesOnly(false)
                 setGoalsOnly(false)
                 setKeptOnly(false)
