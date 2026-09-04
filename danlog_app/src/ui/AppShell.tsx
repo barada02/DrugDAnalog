@@ -60,6 +60,17 @@ const NAV: { id: Page; label: string; icon: ReactNode }[] = [
       </>
     ),
   },
+  {
+    id: 'report',
+    label: 'Report',
+    icon: (
+      <>
+        <path d="M6.5 2.75h7.5l4 4v14.5h-11.5Z" />
+        <path d="M14 2.75v4.5h4.5" />
+        <path d="M9.5 12.5h6M9.5 16h4" />
+      </>
+    ),
+  },
 ]
 
 const FOOT: { id: Page; label: string; icon: ReactNode }[] = [

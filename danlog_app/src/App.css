@@ -3629,3 +3629,282 @@ button.evonode:hover {
     flex-wrap: wrap;
   }
 }
+
+/* ==========================================================================
+   Report
+   ========================================================================== */
+
+/* The document itself. Serif and a narrow measure, because this is the one
+   screen in the app that is trying to be a page rather than a workspace. */
+.paper {
+  max-width: 48rem;
+  padding: 40px 44px 34px;
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.62;
+}
+
+.paper__head {
+  border-bottom: 2px solid var(--text);
+  padding-bottom: 14px;
+  margin-bottom: 10px;
+}
+
+.paper__head h1 {
+  font-size: 29px;
+  line-height: 1.2;
+  margin-bottom: 5px;
+}
+
+.paper__subtitle {
+  margin: 0 0 8px;
+  font-size: 17px;
+  color: var(--text-soft);
+}
+
+.paper__meta,
+.paper__foot {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.paper__foot {
+  margin-top: 36px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.paper__foot p {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.paper__titleinput,
+.paper__subtitleinput {
+  display: block;
+  width: 100%;
+  font-family: inherit;
+  background: transparent;
+  border: 1px dashed var(--line);
+  margin-bottom: 6px;
+}
+
+.paper__titleinput {
+  font-size: 27px;
+  font-weight: 660;
+  padding: 4px 8px;
+}
+
+.paper__subtitleinput {
+  font-size: 16px;
+  color: var(--text-soft);
+  padding: 4px 8px;
+}
+
+.paper p {
+  margin: 0 0 12px;
+}
+
+.paper h3 {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 660;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  margin: 30px 0 10px;
+}
+
+.rsection {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.rsection__tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.rsection__spacer {
+  flex: 1;
+}
+
+.rsection__heading,
+.rsection__prose {
+  width: 100%;
+  font-family: inherit;
+  margin-bottom: 8px;
+}
+
+.rsection__prose {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* --- figures --- */
+
+.rfigs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 14px 0;
+}
+
+.rfig {
+  margin: 0;
+  flex: 1 1 210px;
+  max-width: 300px;
+}
+
+.rfig__views {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.rfig__views > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.rfig__3d {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  object-fit: contain;
+}
+
+.rfig figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 7px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11.5px;
+}
+
+.rfig figcaption strong {
+  color: var(--text);
+}
+
+.rfig figcaption span {
+  color: var(--muted);
+}
+
+.rrec {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+}
+
+.rrec > .rfig {
+  flex: none;
+  width: 220px;
+}
+
+.rrec > div:last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.rkv {
+  margin: 14px 0 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12.5px;
+}
+
+.rkv > div {
+  display: flex;
+  gap: 14px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.rkv dt {
+  flex: none;
+  min-width: 132px;
+  color: var(--muted);
+}
+
+.rkv dd {
+  margin: 0;
+  color: var(--text-soft);
+  min-width: 0;
+}
+
+.toggle--inline {
+  margin: 0;
+  padding: 6px 10px;
+}
+
+/* ==========================================================================
+   Print
+   ========================================================================== */
+
+@media print {
+  /* Everything that is app rather than document. */
+  .nav,
+  .topbar,
+  .drawer,
+  .drawer__scrim,
+  .pagehead,
+  .no-print,
+  .rsection__tools {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .shell,
+  .shell__main,
+  .shell__content,
+  .page {
+    display: block;
+    padding: 0;
+    margin: 0;
+    max-width: none;
+    overflow: visible;
+  }
+
+  /* The document loses the card it sits in and becomes the page. */
+  .paper {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  /* Nothing should be split across a page break mid-thought. */
+  .rsection,
+  .rfig,
+  .rrec,
+  table,
+  figure {
+    break-inside: avoid;
+  }
+
+  .paper h3 {
+    break-after: avoid;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+
+  @page {
+    margin: 18mm 16mm;
+  }
+}

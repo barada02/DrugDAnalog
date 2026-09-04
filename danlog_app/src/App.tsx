@@ -12,6 +12,7 @@ import { OverviewPage } from './pages/OverviewPage'
 import { ExplorePage } from './pages/ExplorePage'
 import { ComparePage } from './pages/ComparePage'
 import { EvolutionPage } from './pages/EvolutionPage'
+import { ReportPage } from './pages/ReportPage'
 import { HelpPage, SettingsPage } from './pages/MiscPages'
 import './App.css'
 
@@ -112,6 +113,7 @@ export default function App() {
           {page === 'explore' && <ExplorePage ranked={ranked} sort={sort} setSort={setSort} />}
           {page === 'compare' && <ComparePage ranked={ranked} />}
           {page === 'evolution' && <EvolutionPage ranked={ranked} />}
+          {page === 'report' && <ReportPage ranked={ranked} />}
           {page === 'settings' && <SettingsPage tools={tools} />}
           {page === 'help' && <HelpPage />}
         </>

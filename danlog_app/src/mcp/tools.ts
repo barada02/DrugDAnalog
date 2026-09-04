@@ -10,6 +10,7 @@ import { shapeFromSdf } from '../chem/shape'
 import { InvalidSmartsError, InvalidSmilesError } from '../chem/rdkit'
 import { matchPattern } from '../chem/substructure'
 import { useWorkbench } from '../store/workbench'
+import { MAX_MOLECULES_PER_SECTION, MAX_SECTIONS, validateReport } from '../chem/report'
 import type { Properties } from '../chem/properties'
 import type { Candidate, Prediction } from '../store/workbench'
 import type { ToolDescriptor, ToolResult } from './webmcp'
@@ -26,6 +27,7 @@ type FailCode =
   | 'NEEDS_APPROVAL'
   | 'NO_SCAFFOLD'
   | 'RDKIT_NOT_READY'
+  | 'INVALID_REPORT'
 
 /**
  * A failure the caller can actually do something about.
@@ -741,6 +743,114 @@ const TOOLS: ToolDescriptor[] = [
         },
         message: 'Focus molecule updated. Further analogs should be derived from this structure.',
       })
+    }),
+  },
+  {
+    name: 'draft_report',
+    description:
+      'Draft a report for the human to review, edit and download. You write the judgement; ' +
+      'the app writes the chemistry. Reference molecules by candidate id and the app fills in ' +
+      'every property, structure drawing and table from live RDKit state — so do NOT quote ' +
+      'property values in your prose, because a number you recall is not a number that was ' +
+      'measured. Call get_workbench_state first for the current candidate ids. This replaces ' +
+      'any existing draft. Only the human can download it. ' +
+      'Section types: text (heading + body, your words); brief (the goal, target profile and ' +
+      'pinned group); molecules (candidateIds + caption, draws the structures); properties ' +
+      '(candidateIds, a table of real values); comparison (candidateIds, deltas against the ' +
+      'focus molecule); recommendation (candidateId + body, your pick and why); evolution ' +
+      '(the design tree and convergence); ledger (how often your own stated numbers were ' +
+      'right). A good default order is brief, text, comparison, recommendation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Short descriptive title for the report.' },
+        subtitle: { type: 'string', description: 'One line of context. Optional.' },
+        sections: {
+          type: 'array',
+          description:
+            `The report body, in order. At most ${MAX_SECTIONS} sections, and at most ` +
+            `${MAX_MOLECULES_PER_SECTION} molecules in any one of them.`,
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: [
+                  'text',
+                  'brief',
+                  'molecules',
+                  'properties',
+                  'comparison',
+                  'recommendation',
+                  'evolution',
+                  'ledger',
+                ],
+              },
+              heading: { type: 'string', description: 'text sections only.' },
+              body: { type: 'string', description: 'text and recommendation sections. Your prose.' },
+              caption: { type: 'string', description: 'molecules, properties and comparison sections.' },
+              candidateIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'molecules, properties and comparison sections. Ids from get_workbench_state.',
+              },
+              candidateId: { type: 'string', description: 'recommendation sections. The molecule you are picking.' },
+              includeFocus: {
+                type: 'boolean',
+                description: 'molecules sections. Show the focus molecule alongside the candidates.',
+              },
+              properties: {
+                type: 'array',
+                items: { type: 'string' },
+                description:
+                  'properties sections. Which measures to tabulate, e.g. ["mw","logP","tpsa","logS"]. ' +
+                  'Defaults to a sensible set.',
+              },
+            },
+            required: ['type'],
+          },
+        },
+      },
+      required: ['title', 'sections'],
+    },
+    execute: guarded('draft_report', (args: unknown) => {
+      const { candidates, focus, setReport, note } = store()
+      const result = validateReport(args, candidates, focus !== null)
+
+      if (!result.ok) {
+        return fail('INVALID_REPORT', result.error, result.hint)
+      }
+
+      setReport(result.report)
+      note({
+        actor: 'agent',
+        tool: 'draft_report',
+        detail: result.report.title,
+        ok: true,
+      })
+
+      return ok({
+        ok: true,
+        drafted: result.report.title,
+        sections: result.report.sections.map((s) => s.type),
+        message:
+          'The draft is on the Report page. The human can edit it, drop sections and download ' +
+          'it. Every number and structure in it is rendered from live state, not from your text.',
+      })
+    }),
+  },
+  {
+    name: 'clear_report',
+    description: 'Discard the current report draft. Use it before drafting a different report.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: guarded('clear_report', () => {
+      const { report, setReport, note } = store()
+      if (!report) {
+        return ok({ ok: true, message: 'There was no draft to clear.' })
+      }
+      setReport(null)
+      note({ actor: 'agent', tool: 'clear_report', detail: report.title, ok: true })
+      return ok({ ok: true, cleared: report.title })
     }),
   },
 ]

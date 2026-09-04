@@ -12,6 +12,7 @@ import { profile } from '../chem/profile'
 import type { Profile } from '../chem/profile'
 import { checkConstraints } from '../chem/constraints'
 import type { Constraint, ConstraintReport } from '../chem/constraints'
+import type { Report, ReportSection } from '../chem/report'
 
 /**
  * The part of the molecule the human has told everyone to leave alone.
@@ -60,7 +61,15 @@ export type Candidate = {
 export type CandidateStatus = 'pending' | 'accepted' | 'rejected'
 
 /** Which workspace the human is looking at. Purely presentational. */
-export type Page = 'overview' | 'design' | 'explore' | 'compare' | 'evolution' | 'settings' | 'help'
+export type Page =
+  | 'overview'
+  | 'design'
+  | 'explore'
+  | 'compare'
+  | 'evolution'
+  | 'report'
+  | 'settings'
+  | 'help'
 
 /** Tabs inside the inspection drawer. */
 export type InspectTab = 'overview' | 'properties' | 'predictions' | 'synthesis' | 'notes'
@@ -122,6 +131,11 @@ type WorkbenchState = {
    * block, so it never silently persists a choice about the network.
    */
   iupacLookup: boolean
+  /**
+   * The one report draft. Reports are an output you download, not state you
+   * accumulate, so a new one replaces the old rather than joining a list.
+   */
+  report: Report | null
 }
 
 type WorkbenchActions = {
@@ -161,6 +175,13 @@ type WorkbenchActions = {
   setCandidateNote: (id: string, text: string) => void
   setTraceOpen: (open: boolean) => void
   setIupacLookup: (on: boolean) => void
+
+  /** Replaces the draft outright. The agent drafts; only a human downloads. */
+  setReport: (report: Report | null) => void
+  editSection: (id: string, patch: Partial<ReportSection>) => void
+  removeSection: (id: string) => void
+  moveSection: (id: string, direction: -1 | 1) => void
+  setReportMeta: (meta: { title?: string; subtitle?: string }) => void
 }
 
 /** The compare table stops being readable past five columns plus the focus. */
@@ -241,6 +262,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   candidateNotes: {},
   traceOpen: false,
   iupacLookup: true,
+  report: null,
 
   setRdkitStatus: (rdkitStatus, rdkitError = undefined) =>
     set({ rdkitStatus, rdkitError: rdkitError ?? null }),
@@ -428,6 +450,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
       compareIds: [],
       shortlist: [],
       candidateNotes: {},
+      report: null,
     })
   },
 
@@ -469,6 +492,49 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   setTraceOpen: (traceOpen) => set({ traceOpen }),
 
   setIupacLookup: (iupacLookup) => set({ iupacLookup }),
+
+  setReport: (report) => set({ report }),
+
+  editSection: (id, patch) =>
+    set((state) =>
+      state.report
+        ? {
+            report: {
+              ...state.report,
+              sections: state.report.sections.map((s) =>
+                s.id === id ? ({ ...s, ...patch } as ReportSection) : s,
+              ),
+            },
+          }
+        : {},
+    ),
+
+  removeSection: (id) =>
+    set((state) =>
+      state.report
+        ? {
+            report: {
+              ...state.report,
+              sections: state.report.sections.filter((s) => s.id !== id),
+            },
+          }
+        : {},
+    ),
+
+  moveSection: (id, direction) =>
+    set((state) => {
+      if (!state.report) return {}
+      const sections = [...state.report.sections]
+      const from = sections.findIndex((s) => s.id === id)
+      const to = from + direction
+      if (from < 0 || to < 0 || to >= sections.length) return {}
+      const [moved] = sections.splice(from, 1)
+      sections.splice(to, 0, moved)
+      return { report: { ...state.report, sections } }
+    }),
+
+  setReportMeta: (meta) =>
+    set((state) => (state.report ? { report: { ...state.report, ...meta } } : {})),
 }))
 
 /**
