@@ -8,21 +8,23 @@
 
 **[Show the app loading on Vercel link]**
 
-"Hey! This is ANALOG — and it's something you've never seen before.
+"Hey! This is ANALOG — and it solves a problem that's been broken for years.
 
-Here's the problem: **AI is amazing at chemistry, but it lies about how sure it is.** 
+Here's what drug design looks like today: You find a molecule design site. You describe your idea to ChatGPT. It proposes a structure. Then you manually copy it. Switch tabs. Paste it in. Run the calculations. Switch back. Tell ChatGPT what you found. Back and forth, back and forth.
 
-Ask an LLM for a molecular weight — it'll tell you. Ask it for a solubility prediction — it'll tell you with the same confidence. But one is math. The other is a guess with a log unit of error.
+**But there's a bigger problem:** AI doesn't just lack context — **it hallucinates with confidence.** You ask an LLM for a solubility prediction, and it tells you with absolute certainty. Same tone, same confidence as when it does actual math. But one is verified. The other is a guess with a log unit of error.
 
-So we built a tool where **the AI proposes, RDKit measures, and YOU decide.** And WebMCP is what makes that possible."
+So we built ANALOG with WebMCP — which means the AI and the chemistry tools work *together* in the same place, in real time. 
+
+**The AI proposes. RDKit calculates. The platform finds the truthfulness through computation. And YOU decide.** No manual copy-pasting. No hidden guesses. Just a conversation where every number is verifiable."
 
 ---
 
 ## [THE SETUP - 0:15 to 0:45]
 
-**[Click into Design page, show paracetamol loaded]**
+**[Click into Design page, show aspirin loaded]**
 
-"Let's start with paracetamol — a real drug we want to improve.
+"Let's start with aspirin — a real drug we want to improve.
 
 I'm going to set a design brief:
 - Goal: Make it more soluble and easier to absorb
@@ -39,7 +41,7 @@ Now here's the interesting part: I'm asking the AI agent to propose three analog
 
 **[Type or paste into chat with agent]**
 
-*"Propose three paracetamol analogs that are more soluble. For each one, predict logP and logS before computing."*
+*"Propose three aspirin analogs that are more soluble. For each one, predict logP and logS before computing."*
 
 **[Wait for agent response, show it appears on the board]**
 
@@ -154,7 +156,7 @@ Try it at drug-d-analog.vercel.app"
 
 ## VISUAL CHECKLIST FOR RECORDING
 
-✅ Load paracetamol (it's the default)  
+✅ Load aspirin (it's the default)  
 ✅ Fill in brief clearly (goal, constraints, preserve group)  
 ✅ Show agent response appearing as cards  
 ✅ Click into one card, show Properties tab with predicted vs actual  
