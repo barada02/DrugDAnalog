@@ -129,14 +129,24 @@ function EvoNode({
   const rejected = candidate.status === 'rejected'
   const delta = deltaFor('logS', candidate.properties, focus?.properties ?? null, constraints)
 
+  /**
+   * One state per node, in precedence order, so a card carries a single
+   * meaning rather than three overlapping tints. The colour is the status --
+   * that is the whole point of colouring it.
+   */
+  const state = isFocus
+    ? 'focus'
+    : rejected
+      ? 'rejected'
+      : promoted
+        ? 'promoted'
+        : candidate.status === 'accepted'
+          ? 'accepted'
+          : 'pending'
+
   return (
     <button
-      className={
-        'evonode' +
-        (promoted ? ' evonode--promoted' : '') +
-        (isFocus ? ' evonode--focus' : '') +
-        (rejected ? ' evonode--rejected' : '')
-      }
+      className={'evonode evonode--' + state}
       onClick={() => inspect(candidate.id)}
       title={candidate.rationale || undefined}
     >

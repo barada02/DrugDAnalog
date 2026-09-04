@@ -193,6 +193,14 @@ export function GenerationGraph(props: {
 }) {
   return (
     <div className="graph">
+      <ul className="graphkey">
+        <li className="graphkey__origin"><i />Origin</li>
+        <li className="graphkey__focus"><i />Current focus</li>
+        <li className="graphkey__promoted"><i />Promoted</li>
+        <li className="graphkey__accepted"><i />Accepted</li>
+        <li className="graphkey__pending"><i />Awaiting you</li>
+        <li className="graphkey__rejected"><i />Rejected</li>
+      </ul>
       {/* React Flow ships no size or position for its root element, so the
           canvas needs an explicitly sized, positioned box of its own. Without
           it the flow collapses and its background layer, which sits at

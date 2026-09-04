@@ -1270,6 +1270,7 @@ select:focus {
 .ccard__name {
   font-size: 14px;
   font-weight: 620;
+  color: var(--text);
   line-height: 1.35;
 }
 
@@ -2214,6 +2215,7 @@ select:focus {
 .picker__name {
   font-size: 12.5px;
   font-weight: 620;
+  color: var(--text);
 }
 
 .picker__sub {
@@ -2442,6 +2444,7 @@ button.mini:hover {
 .mini__title {
   font-size: 12px;
   font-weight: 600;
+  color: var(--text);
   line-height: 1.3;
 }
 
@@ -3008,8 +3011,10 @@ button.mini:hover {
   border: 0;
 }
 
+/* --line is right for a hairline border and far too faint for a connector
+   the eye has to follow across a gap. */
 .graph .react-flow__edge-path {
-  stroke: var(--line);
+  stroke: #c3c8d6;
 }
 
 .graph .graph__edge--promoted .react-flow__edge-path {
@@ -3031,16 +3036,21 @@ button.mini:hover {
 }
 
 .graph__collabel {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   gap: 2px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
   font-size: 10.5px;
-  font-weight: 640;
+  font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent-deep);
   white-space: nowrap;
   pointer-events: none;
+  box-shadow: var(--shadow);
 }
 
 .graph__collabel span {
@@ -3068,9 +3078,12 @@ button.mini:hover {
 }
 
 .graph .react-flow__minimap {
+  width: 150px;
+  height: 104px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .graph .react-flow__panel {
@@ -3078,38 +3091,97 @@ button.mini:hover {
 }
 
 /* --- nodes inside the graph ---
-   A node box is a fixed size, so the card lays itself out to fill it and the
-   long lines clamp instead of spilling past the edge. */
+
+   Colour carries the state, one meaning per card, so the tree can be read at
+   a glance instead of one label at a time:
+
+     focus     purple, filled   the molecule everything is measured against
+     promoted  purple, outlined a step on the path actually taken
+     accepted  green            approved, not promoted
+     pending   amber            still waiting on a decision
+     rejected  red, faded       turned down
+     origin    slate            where the board started
+*/
 
 .evonode {
   display: flex;
   flex-direction: column;
   gap: 5px;
   align-items: stretch;
-  padding: 10px;
+  padding: 10px 10px 10px 12px;
   border: 1px solid var(--line);
+  /* The status strip. Every card has one so they stay the same width. */
+  border-left: 4px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
+  /* Never inherit: an unstyled button takes its colour from the UA, which is
+     how this text once ended up white on white. */
+  color: var(--text);
   font: inherit;
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 2px rgba(20, 24, 40, 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 button.evonode:hover {
   border-color: var(--accent-line);
   box-shadow: var(--shadow-lift);
+  transform: translateY(-1px);
+}
+
+.evonode--focus {
+  border-color: var(--accent-line);
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 2px 6px rgba(109, 91, 208, 0.16);
+}
+
+.evonode--promoted {
+  border-color: var(--accent-line);
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+}
+
+.evonode--accepted {
+  border-left-color: var(--ok);
+  background: color-mix(in srgb, var(--ok-soft) 55%, var(--surface));
+}
+
+.evonode--pending {
+  border-left-color: var(--warn);
+}
+
+.evonode--rejected {
+  border-left-color: var(--bad);
+  background: var(--surface-sunk);
+  opacity: 0.6;
+}
+
+.evonode--rejected:hover {
+  opacity: 1;
+}
+
+.evonode--origin {
+  border-left-color: var(--text-soft);
+  background: var(--surface-sunk);
+}
+
+.evonode--origin.evonode--focus {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .evonode--static,
 .evonode--ghost {
   cursor: default;
+  box-shadow: none;
 }
 
 .evonode--ghost {
   border-style: dashed;
-  background: var(--surface-sunk);
+  border-left-style: solid;
   justify-content: center;
   gap: 8px;
 }
@@ -3118,28 +3190,12 @@ button.evonode:hover {
   width: 100%;
   flex: 1;
   min-height: 0;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: transparent;
 }
 
 .evonode .depiction svg {
   max-height: 100%;
-}
-
-.evonode--promoted {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-}
-
-.evonode--focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.evonode--rejected {
-  opacity: 0.55;
-}
-
-.evonode--rejected:hover {
-  opacity: 1;
 }
 
 .evonode__top {
@@ -3152,10 +3208,10 @@ button.evonode:hover {
 
 .evonode__rank {
   font-size: 10px;
-  font-weight: 660;
+  font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text-soft);
   white-space: nowrap;
 }
 
@@ -3182,6 +3238,7 @@ button.evonode:hover {
   font-weight: 600;
   line-height: 1.3;
   max-height: 2.6em;
+  color: var(--text);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -3207,6 +3264,7 @@ button.evonode:hover {
 .evonode__goals {
   flex: none;
   font-size: 10px;
+  font-weight: 600;
   color: var(--warn);
 }
 
@@ -3218,3 +3276,36 @@ button.evonode:hover {
   font-size: 10px;
   text-align: center;
 }
+
+/* --- legend --- */
+
+.graphkey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 11.5px;
+  color: var(--text-soft);
+}
+
+.graphkey li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.graphkey i {
+  width: 4px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.graphkey__focus i { background: var(--accent); }
+.graphkey__promoted i { background: var(--accent); opacity: 0.5; }
+.graphkey__accepted i { background: var(--ok); }
+.graphkey__pending i { background: var(--warn); }
+.graphkey__rejected i { background: var(--bad); }
+.graphkey__origin i { background: var(--text-soft); }
