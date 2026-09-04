@@ -20,6 +20,7 @@ import {
 } from '../ui/molecule'
 import { CandidateCard, MiniMolecule, shortName } from '../ui/CandidateCard'
 import { usePresetName } from '../ui/usePresetName'
+import { useGroupPresence } from '../ui/useGroupPresence'
 
 /**
  * The Design page: the whole point of the application.
@@ -96,6 +97,7 @@ function ScaffoldControls() {
   const note = useWorkbench((s) => s.note)
   const [custom, setCustom] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const presence = useGroupPresence(focus?.properties.canonicalSmiles ?? null)
 
   const pin = async (label: string, smarts: string, about: string) => {
     setError(null)
@@ -120,19 +122,31 @@ function ScaffoldControls() {
       <h4>Preserve</h4>
       <p className="hint">
         Pin a group and it must survive every proposal. Each candidate is checked, and the agent
-        is told when it broke the promise.
+        is told when it broke the promise. Only the groups this molecule actually has can be
+        pinned &mdash; pinning an absent one would fail every candidate by construction.
       </p>
       <div className="chips">
-        {GROUPS.map((group) => (
-          <button
-            key={group.label}
-            className={'chip' + (scaffold?.smarts === group.smarts ? ' chip--on' : '')}
-            title={group.about}
-            onClick={() => void pin(group.label, group.smarts, group.about)}
-          >
-            {group.label}
-          </button>
-        ))}
+        {GROUPS.map((group) => {
+          // Null while the match is still running: everything stays enabled
+          // rather than flickering disabled and back.
+          const absent = presence !== null && presence[group.label] === false
+          return (
+            <button
+              key={group.label}
+              className={
+                'chip' +
+                (scaffold?.smarts === group.smarts ? ' chip--on' : '') +
+                (absent ? ' chip--absent' : '') +
+                (!absent && presence !== null ? ' chip--present' : '')
+              }
+              disabled={absent}
+              title={absent ? `${group.label} is not in this molecule` : group.about}
+              onClick={() => void pin(group.label, group.smarts, group.about)}
+            >
+              {group.label}
+            </button>
+          )
+        })}
         {scaffold && (
           <button className="chip chip--clear" onClick={() => void clear()}>
             clear
@@ -315,6 +329,13 @@ function FocusSection() {
               {showAll ? 'Hide properties' : 'View all properties'}
             </button>
           </div>
+
+          {focus.profile.groups.length > 0 && (
+            <div className="focus__groups">
+              <h4>Groups present</h4>
+              <Groups groups={focus.profile.groups} />
+            </div>
+          )}
 
           <div className="brief">
             <div className="brief__col">

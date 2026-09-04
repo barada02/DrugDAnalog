@@ -483,6 +483,7 @@ export function Inspector({ ranked }: { ranked: Ranked[] }) {
   const focus = useWorkbench((s) => s.focus)
   const focusId = useWorkbench((s) => s.focusId)
   const decide = useWorkbench((s) => s.decide)
+  const removeCandidate = useWorkbench((s) => s.remove)
   const promote = useWorkbench((s) => s.promote)
   const note = useWorkbench((s) => s.note)
   const shortlist = useWorkbench((s) => s.shortlist)
@@ -548,6 +549,29 @@ export function Inspector({ ranked }: { ranked: Ranked[] }) {
     inspect(null)
   }
 
+  const destroy = () => {
+    if (!candidate) return
+    const children = ranked.filter((r) => r.candidate.parentId === candidate.id).length
+    const ok = confirm(
+      'Delete this candidate permanently?\n\n' +
+        `${candidate.properties.canonicalSmiles}\n\n` +
+        'Rejecting keeps it on the board as a decision you made and can be undone. ' +
+        'Deleting cannot.' +
+        (children > 0
+          ? `\n\n${children} candidate${children === 1 ? '' : 's'} designed from it will be ` +
+            'kept and reattached to its parent.'
+          : ''),
+    )
+    if (!ok) return
+    removeCandidate(candidate.id)
+    note({
+      actor: 'human',
+      tool: 'delete_candidate',
+      detail: candidate.properties.canonicalSmiles,
+      ok: true,
+    })
+  }
+
   // Nothing selected, or the selection was cleared by a board reset.
   if (!subject) return null
 
@@ -594,7 +618,7 @@ export function Inspector({ ranked }: { ranked: Ranked[] }) {
       }
       footer={
         candidate ? (
-          <>
+          <div className="drawer__actions">
             <button
               className="btn btn--primary"
               onClick={() => void makeFocus()}
@@ -602,19 +626,41 @@ export function Inspector({ ranked }: { ranked: Ranked[] }) {
             >
               {isFocus ? '✓ Current focus molecule' : '✓ Make focus molecule'}
             </button>
-            <button className="btn btn--ghost" onClick={() => toggleShortlist(candidate.id)}>
-              {starred ? '★ Shortlisted' : '☆ Shortlist'}
-            </button>
-            {!rejected ? (
-              <button className="btn btn--danger" onClick={() => judge('rejected')}>
-                ⊘ Reject
+            <div className="drawer__actionrow">
+              {/* Approving without promoting. Accepting says the idea is sound;
+                  making it the focus says the next generation comes from it. */}
+              {candidate.status === 'pending' && (
+                <button className="btn btn--ok" onClick={() => judge('accepted')}>
+                  ✓ Accept
+                </button>
+              )}
+              {candidate.status === 'accepted' && !isFocus && (
+                <span className="drawer__accepted" title="Approved, but not the focus molecule">
+                  ✓ Accepted
+                </span>
+              )}
+              <button className="btn btn--ghost" onClick={() => toggleShortlist(candidate.id)}>
+                {starred ? '★' : '☆'} Shortlist
               </button>
-            ) : (
-              <button className="btn btn--ghost" onClick={() => judge('accepted')}>
-                Restore
+              {!rejected ? (
+                <button className="btn btn--danger" onClick={() => judge('rejected')}>
+                  ⊘ Reject
+                </button>
+              ) : (
+                <button className="btn btn--ghost" onClick={() => judge('accepted')}>
+                  Restore
+                </button>
+              )}
+              <button
+                className="btn btn--icon btn--danger"
+                onClick={destroy}
+                title="Delete permanently"
+                aria-label="Delete permanently"
+              >
+                🗑
               </button>
-            )}
-          </>
+            </div>
+          </div>
         ) : undefined
       }
     >

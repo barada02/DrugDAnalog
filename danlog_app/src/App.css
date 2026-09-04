@@ -627,6 +627,18 @@ select:focus {
   color: var(--bad);
 }
 
+.btn--ok {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+  color: var(--ok);
+  background: var(--surface);
+}
+
+.btn--ok:hover {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
 .btn--icon {
   width: 34px;
   padding: 8px 0;
@@ -706,6 +718,35 @@ select:focus {
 
 .chip--clear {
   color: var(--muted);
+}
+
+/* Present in the focus molecule, so pinning it can actually succeed. */
+.chip--present {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+}
+
+/* Absent. Pinning it would fail every candidate by construction, so it is not
+   offered rather than offered and then warned about. */
+.chip--absent {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.chip--absent:hover {
+  border-color: var(--line);
+  color: var(--text-soft);
+}
+
+.chip__count {
+  margin-left: 6px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.chip--on .chip__count {
+  color: var(--accent-deep);
 }
 
 .sort {
@@ -988,6 +1029,19 @@ select:focus {
   border-top: 1px solid var(--line-soft);
 }
 
+.focus__groups {
+  margin-top: 12px;
+}
+
+.focus__groups h4 {
+  font-size: 10.5px;
+  font-weight: 640;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+
 .brief {
   display: flex;
   gap: 30px;
@@ -1150,10 +1204,26 @@ select:focus {
   font-variant-numeric: tabular-nums;
 }
 
+.ccard__gen {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--surface-sunk);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+
 .ccard__label {
   font-size: 12.5px;
   font-weight: 620;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ccard__label--muted {
@@ -1810,8 +1880,45 @@ select:focus {
   background: var(--surface-sunk);
 }
 
-.drawer__foot .btn--primary {
+.drawer__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.drawer__actions .btn--primary {
+  width: 100%;
+}
+
+.drawer__actionrow {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.drawer__actionrow .btn {
   flex: 1;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.drawer__actionrow .btn--icon {
+  flex: none;
+  width: 34px;
+  padding: 7px 0;
+}
+
+.drawer__accepted {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .drawer__panel {

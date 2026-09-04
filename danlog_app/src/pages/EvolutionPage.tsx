@@ -4,7 +4,7 @@ import type { Candidate, Molecule } from '../store/workbench'
 import type { Properties } from '../chem/properties'
 import { measureFor } from '../chem/measures'
 import { download } from '../chem/export'
-import { deltaFor, rankLabel, type Ranked } from '../chem/ranking'
+import { deltaFor, generationMap, rankLabel, type Ranked } from '../chem/ranking'
 import { EmptyState, Metric, SectionHead, StatusBadge } from '../ui/primitives'
 import { DeltaValue, Depiction } from '../ui/molecule'
 import { LineChart, SERIES_COLORS, Sparkline, type LineSeries } from '../ui/charts'
@@ -42,29 +42,17 @@ type SiblingGroup = {
 type Generation = { depth: number; groups: SiblingGroup[] }
 
 /**
- * Depth 1 is everything designed straight off the molecule that started the
- * board; each promotion adds a level. Written iteratively against a memo so a
- * malformed parent chain cannot recurse forever.
+ * Groups the board into columns. Depth comes from the shared generationMap so
+ * the "G2" tag on a card and the column a molecule sits in here are computed
+ * once, from the same code, and cannot drift apart.
  */
 function buildGenerations(
   candidates: Candidate[],
   labelFor: (c: Candidate) => string,
 ): Generation[] {
   const byId = new Map(candidates.map((c) => [c.id, c]))
-  const depth = new Map<string, number>()
+  const depth = generationMap(candidates)
 
-  const depthOf = (c: Candidate): number => {
-    const known = depth.get(c.id)
-    if (known !== undefined) return known
-    // Provisional value doubles as the cycle guard.
-    depth.set(c.id, 1)
-    const parent = c.parentId ? byId.get(c.parentId) : undefined
-    const resolved = parent ? depthOf(parent) + 1 : 1
-    depth.set(c.id, resolved)
-    return resolved
-  }
-
-  candidates.forEach(depthOf)
   if (candidates.length === 0) return []
 
   const maxDepth = Math.max(...candidates.map((c) => depth.get(c.id) ?? 1))

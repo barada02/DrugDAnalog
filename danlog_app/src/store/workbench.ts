@@ -131,6 +131,11 @@ type WorkbenchActions = {
     source: 'human' | 'agent'
   }) => Promise<Candidate>
   decide: (id: string, status: Exclude<CandidateStatus, 'pending'>) => void
+  /**
+   * Take a candidate off the board for good. Rejecting keeps a decision on the
+   * record; this is for things that should never have been there.
+   */
+  remove: (id: string) => void
   /** Make an accepted candidate the focus, recording it as the parent of what follows. */
   promote: (id: string) => Promise<Molecule>
   /** Rebuild a saved session. Returns false when there was nothing to restore. */
@@ -315,6 +320,31 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
         candidate.id === id ? { ...candidate, status, decidedAt: Date.now() } : candidate,
       ),
     })),
+
+  /**
+   * Children are spliced onto the removed candidate's own parent rather than
+   * deleted with it or left pointing at nothing. Losing one idea should not
+   * silently orphan the work that came after it, and a dangling parentId would
+   * make a whole branch look like it started from the root.
+   */
+  remove: (id) =>
+    set((state) => {
+      const victim = state.candidates.find((c) => c.id === id)
+      if (!victim) return {}
+      const inherited = victim.parentId
+      const { [id]: _removed, ...candidateNotes } = state.candidateNotes
+      return {
+        candidates: state.candidates
+          .filter((c) => c.id !== id)
+          .map((c) => (c.parentId === id ? { ...c, parentId: inherited } : c)),
+        candidateNotes,
+        compareIds: state.compareIds.filter((c) => c !== id),
+        shortlist: state.shortlist.filter((s) => s !== id),
+        inspectId: state.inspectId === id ? null : state.inspectId,
+        // The molecule stays in focus; it just stops being a board candidate.
+        focusId: state.focusId === id ? null : state.focusId,
+      }
+    }),
 
   promote: async (candidateId) => {
     const candidate = get().candidates.find((c) => c.id === candidateId)

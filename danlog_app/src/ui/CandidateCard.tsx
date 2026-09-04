@@ -77,6 +77,12 @@ export function CandidateCard({
     >
       <header className="ccard__head">
         <span className="ccard__rank">{rankLabel(entry.rank)}</span>
+        <span
+          className="ccard__gen"
+          title={`Generation ${entry.generation} — ${entry.generation === 1 ? 'designed from the starting molecule' : `${entry.generation - 1} promotion${entry.generation === 2 ? '' : 's'} deep`}`}
+        >
+          G{entry.generation}
+        </span>
         {entry.label ? (
           <span className="ccard__label">{entry.label}</span>
         ) : (
