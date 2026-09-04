@@ -13,7 +13,8 @@ import { ExplorePage } from './pages/ExplorePage'
 import { ComparePage } from './pages/ComparePage'
 import { EvolutionPage } from './pages/EvolutionPage'
 import { ReportPage } from './pages/ReportPage'
-import { HelpPage, SettingsPage } from './pages/MiscPages'
+import { SettingsPage } from './pages/MiscPages'
+import { HelpPage } from './pages/HelpPage'
 import './App.css'
 
 /** Why WebMCP is not usable here, or null if it is. Read once, at render. */

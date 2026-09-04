@@ -93,7 +93,9 @@ h4 {
   flex: none;
   background: var(--surface);
   border-right: 1px solid var(--line);
-  padding: 18px 10px 16px;
+  /* Top padding clears the top bar's height so the first item sits level with
+     the workspace rather than jammed against the roof. */
+  padding: 22px 10px 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -102,38 +104,29 @@ h4 {
   height: 100vh;
 }
 
-.nav__brand {
+/* The wordmark carries the product name in the top bar; the sidebar is icons
+   and labels only. */
+.brandmark {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 4px 0 18px;
-  color: var(--accent);
+  flex: none;
+  padding: 0;
+  margin-right: 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  opacity: 0.95;
+  transition: opacity 0.15s;
 }
 
-.nav__logo {
-  width: 28px;
-  height: 28px;
+.brandmark:hover {
+  opacity: 1;
 }
 
-.nav__brandtext {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.25;
-}
-
-.nav__brandtext strong {
-  font-size: 12.5px;
-  letter-spacing: 0.09em;
-  color: var(--text);
-}
-
-.nav__brandtext em {
-  font-style: normal;
-  font-size: 9.5px;
-  color: var(--muted);
-  letter-spacing: 0.02em;
+.brandmark img {
+  display: block;
+  height: 30px;
+  width: auto;
 }
 
 .nav__group {
@@ -189,8 +182,8 @@ h4 {
   z-index: 20;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 18px;
   padding: 12px 28px;
   background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(8px);
@@ -198,6 +191,7 @@ h4 {
 }
 
 .topbar__right {
+  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2883,9 +2877,12 @@ button.mini:hover {
     --nav-w: 62px;
   }
 
-  .nav__label,
-  .nav__brandtext {
+  .nav__label {
     display: none;
+  }
+
+  .brandmark img {
+    height: 24px;
   }
 
   .shell__content {
@@ -3907,4 +3904,102 @@ button.evonode:hover {
   @page {
     margin: 18mm 16mm;
   }
+}
+
+/* ==========================================================================
+   Documentation
+   ========================================================================== */
+
+.doc .surface {
+  scroll-margin-top: 76px;
+}
+
+.doc p {
+  max-width: 70ch;
+}
+
+.doc__lead {
+  font-size: 14.5px;
+  color: var(--text-soft);
+  border-left: 2px solid var(--accent-line);
+  padding-left: 14px;
+  margin: 14px 0;
+}
+
+.doctoc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 62px;
+  z-index: 10;
+}
+
+.doctoc a {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 520;
+  color: var(--text-soft);
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.doctoc a:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+.doc h3 {
+  font-size: 12px;
+  font-weight: 660;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 20px 0 8px;
+}
+
+.doccards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 16px;
+}
+
+.doccards article {
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunk);
+}
+
+.doccards h3 {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  font-weight: 640;
+  letter-spacing: -0.005em;
+  text-transform: none;
+  color: var(--text);
+}
+
+.doccards p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--text-soft);
+}
+
+.doc .kv__key {
+  min-width: 178px;
+  color: var(--text);
+  font-weight: 560;
+}
+
+.doc .notcomputable .kv__key {
+  text-transform: capitalize;
 }
