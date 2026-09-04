@@ -5,6 +5,7 @@ import type { Properties } from '../chem/properties'
 import { measureFor } from '../chem/measures'
 import { download } from '../chem/export'
 import { deltaFor, generationMap, rankLabel, type Ranked } from '../chem/ranking'
+import { briefRatio } from '../chem/progress'
 import { EmptyState, Metric, SectionHead, StatusBadge } from '../ui/primitives'
 import { DeltaValue, Depiction } from '../ui/molecule'
 import { LineChart, SERIES_COLORS, Sparkline, type LineSeries } from '../ui/charts'
@@ -320,22 +321,10 @@ function ConvergenceChart({
   const constraints = useWorkbench((s) => s.constraints)
   const usingGoals = constraints.length > 0
 
-  /**
-   * How close a molecule is to the brief. Falls back to rulesets when no target
-   * profile has been set, because a constraint ratio over zero constraints is
-   * not 100% -- it is undefined, and drawing it as success would be a lie.
-   */
-  const ratio = (m: {
-    constraints: Candidate['constraints']
-    rules: Candidate['rules']
-  }): number | null => {
-    if (usingGoals) {
-      return m.constraints.total === 0 ? null : m.constraints.satisfied / m.constraints.total
-    }
-    return m.rules.rules.length === 0
-      ? null
-      : m.rules.rules.filter((r) => r.passes).length / m.rules.rules.length
-  }
+  // Shared with Overview, so the two pages cannot disagree about what
+  // "closer to the brief" means.
+  const ratio = (m: { constraints: Candidate['constraints']; rules: Candidate['rules'] }) =>
+    briefRatio(m, usingGoals)
 
   const labels = ['Start', ...generations.map((g) => `Gen ${g.depth}`)]
   const startValue = origin ? ratio(origin) : null
