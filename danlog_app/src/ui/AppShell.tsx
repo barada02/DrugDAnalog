@@ -229,14 +229,16 @@ function TopBar({ tools, agentReady }: { tools: number; agentReady: boolean }) {
 
   return (
     <header className="topbar">
-      <button
-        className="brandmark"
-        onClick={() => setPage('overview')}
-        title="Overview"
-        aria-label="ANALOG — go to Overview"
-      >
-        <img src="/wordmark.png" alt="ANALOG" />
-      </button>
+      <div className="topbar__brand">
+        <button
+          className="brandmark"
+          onClick={() => setPage('overview')}
+          title="Overview"
+          aria-label="ANALOG — go to Overview"
+        >
+          <img src="/wordmark.png" alt="ANALOG" />
+        </button>
+      </div>
       <ProjectMenu />
       <div className="topbar__right">
         <span className={'agent' + (agentReady ? ' agent--ok' : ' agent--bad')}>
@@ -295,12 +297,16 @@ export function AppShell({
 }) {
   return (
     <div className="shell">
-      <Sidebar />
-      <div className="shell__main">
-        <TopBar tools={tools} agentReady={agentReady} />
-        <main className="shell__content">{children}</main>
+      {/* The bar spans the whole width so the wordmark owns the top-left
+          corner, above the sidebar rather than beside it. */}
+      <TopBar tools={tools} agentReady={agentReady} />
+      <div className="shell__body">
+        <Sidebar />
+        <div className="shell__main">
+          <main className="shell__content">{children}</main>
+        </div>
+        {drawer}
       </div>
-      {drawer}
     </div>
   )
 }

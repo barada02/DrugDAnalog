@@ -16,7 +16,7 @@
 
   --text: #191c27;
   --text-soft: #4b5162;
-  --muted: #757c8e;
+  --muted: #6e7488;
 
   --accent: #6d5bd0;
   --accent-deep: #5947b8;
@@ -37,7 +37,13 @@
   --shadow: 0 1px 2px rgba(20, 24, 40, 0.04), 0 4px 14px rgba(20, 24, 40, 0.05);
   --shadow-lift: 0 2px 6px rgba(20, 24, 40, 0.07), 0 12px 30px rgba(20, 24, 40, 0.09);
 
-  --nav-w: 92px;
+  --nav-w: 96px;
+  --topbar-h: 58px;
+
+  /* The sidebar is tinted rather than white so the workspace reads as the
+     page and the navigation reads as chrome. */
+  --nav-bg: #eeecf8;
+  --nav-line: #e0ddf2;
   /* Docked, so it is spent from the board's width -- kept as tight as the
      comparison table can be read at. */
   --drawer-w: 412px;
@@ -52,9 +58,22 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* --- typography ---------------------------------------------------------
+
+   Four choices, all on the system stack so nothing is fetched to render text:
+
+   1. Headings track tighter as they grow. At 28px the default spacing reads
+      loose; at 11px the uppercase labels need the opposite and get positive
+      tracking where they are defined.
+   2. Headings wrap balanced, so a two-line title does not leave one orphan.
+   3. Every number in the app is tabular. Figures that change -- a delta, a
+      countdown, a property column -- must not make the row jump.
+   4. Body copy is capped near 70 characters wherever it is prose rather than
+      an interface label. */
 
 h1,
 h2,
@@ -62,6 +81,37 @@ h3,
 h4 {
   margin: 0;
   letter-spacing: -0.011em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+h1 {
+  letter-spacing: -0.022em;
+}
+
+h2 {
+  letter-spacing: -0.016em;
+}
+
+/* Anything that is a measurement rather than a word. */
+.metric__value,
+.ccard__deltavalue,
+.ccard__metric strong,
+.bignum strong,
+.props dd,
+.ctable,
+.cmp,
+.ledger,
+.evonode__stat,
+.ranklist__delta,
+.delta,
+.sa__score strong {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 /* ==========================================================================
@@ -70,7 +120,14 @@ h4 {
 
 .shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
+}
+
+.shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .shell__main {
@@ -91,17 +148,15 @@ h4 {
 .nav {
   width: var(--nav-w);
   flex: none;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  /* Top padding clears the top bar's height so the first item sits level with
-     the workspace rather than jammed against the roof. */
-  padding: 22px 10px 16px;
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-line);
+  padding: 16px 10px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
 }
 
 /* The wordmark carries the product name in the top bar; the sidebar is icons
@@ -125,8 +180,11 @@ h4 {
 
 .brandmark img {
   display: block;
-  height: 30px;
+  height: auto;
   width: auto;
+  max-height: 26px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .nav__group {
@@ -138,7 +196,7 @@ h4 {
 .nav__group--foot {
   margin-top: auto;
   padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--nav-line);
 }
 
 .nav__item {
@@ -153,20 +211,22 @@ h4 {
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   transition: background 0.15s, color 0.15s;
 }
 
 .nav__item:hover {
-  background: var(--line-soft);
+  background: rgba(255, 255, 255, 0.62);
   color: var(--text);
 }
 
+/* White against the tint, rather than a tint against white. */
 .nav__item--on,
 .nav__item--on:hover {
-  background: var(--accent-soft);
+  background: var(--surface);
   color: var(--accent-deep);
-  font-weight: 600;
+  font-weight: 620;
+  box-shadow: 0 1px 2px rgba(20, 24, 40, 0.06);
 }
 
 .nav__icon {
@@ -179,19 +239,39 @@ h4 {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 30;
+  flex: none;
+  height: var(--topbar-h);
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 18px;
-  padding: 12px 28px;
-  background: rgba(255, 255, 255, 0.86);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
 }
 
+/* Exactly the sidebar's width, so the wordmark sits over the navigation
+   column and the two dividers line up. */
+.topbar__brand {
+  width: var(--nav-w);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  background: var(--nav-bg);
+  border-right: 1px solid var(--nav-line);
+}
+
+.topbar > .project {
+  margin-left: 20px;
+  align-self: center;
+}
+
 .topbar__right {
   margin-left: auto;
+  padding-right: 22px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -205,7 +285,7 @@ h4 {
 }
 
 .project__label {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--muted);
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -219,7 +299,7 @@ h4 {
   border: 0;
   background: none;
   font: inherit;
-  font-size: 16px;
+  font-size: 17.5px;
   font-weight: 650;
   color: var(--text);
   cursor: pointer;
@@ -251,7 +331,7 @@ h4 {
 
 .project__menuhead {
   margin: 4px 8px 6px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
@@ -283,7 +363,7 @@ h4 {
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-soft);
   white-space: nowrap;
 }
@@ -362,14 +442,14 @@ h4 {
 }
 
 .pagehead h1 {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 680;
 }
 
 .pagehead p {
   margin: 5px 0 0;
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: 14.5px;
 }
 
 .surface {
@@ -392,7 +472,7 @@ h4 {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 660;
   text-transform: uppercase;
   letter-spacing: 0.085em;
@@ -409,7 +489,7 @@ h4 {
 
 .hint {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   margin: 0 0 10px;
 }
 
@@ -424,7 +504,7 @@ h4 {
 .smiles {
   display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   word-break: break-all;
 }
@@ -433,7 +513,7 @@ h4 {
 .warn {
   border-radius: var(--radius-sm);
   padding: 10px 12px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   margin: 10px 0 0;
 }
 
@@ -449,19 +529,19 @@ h4 {
 
 .violations {
   color: var(--bad);
-  font-size: 12.5px;
+  font-size: 13.5px;
   margin: 10px 0 0;
 }
 
 .rationale {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--muted);
   margin: 8px 0 0;
 }
 
 .rationale--full {
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .splash {
@@ -505,7 +585,7 @@ select {
   padding: 9px 12px;
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   transition: border-color 0.15s, background 0.15s;
 }
 
@@ -548,7 +628,7 @@ select:focus {
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 550;
   cursor: pointer;
   white-space: nowrap;
@@ -637,7 +717,7 @@ select:focus {
   width: 34px;
   padding: 8px 0;
   flex: none;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .btn--icon-on {
@@ -651,7 +731,7 @@ select:focus {
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--accent-deep);
   cursor: pointer;
   text-align: left;
@@ -671,7 +751,7 @@ select:focus {
   background: var(--surface);
   color: var(--muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .iconbtn:hover {
@@ -688,7 +768,7 @@ select:focus {
 
 .chip {
   padding: 6px 13px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 520;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -734,7 +814,7 @@ select:focus {
 
 .chip__count {
   margin-left: 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
@@ -747,13 +827,13 @@ select:focus {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 
 .sort select {
   padding: 6px 10px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   cursor: pointer;
 }
 
@@ -772,7 +852,7 @@ select:focus {
   display: inline-block;
   padding: 3px 9px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 570;
   white-space: nowrap;
   letter-spacing: 0.005em;
@@ -822,7 +902,7 @@ select:focus {
 }
 
 .metric__label {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -830,14 +910,14 @@ select:focus {
 }
 
 .metric__value {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 620;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
 .metric__unit {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--muted);
   margin-left: 2px;
@@ -862,7 +942,7 @@ select:focus {
   border: 1px solid var(--accent-line);
   background: var(--accent-soft);
   color: var(--accent-deep);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 540;
 }
 
@@ -876,7 +956,7 @@ select:focus {
   display: inline-block;
   padding: 3px 9px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 560;
   white-space: nowrap;
 }
@@ -906,20 +986,20 @@ select:focus {
 }
 
 .emptystate__icon {
-  font-size: 26px;
+  font-size: 28px;
   color: var(--accent-line);
   margin-bottom: 8px;
 }
 
 .emptystate__title {
   margin: 0 0 6px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
 }
 
 .emptystate__body {
-  font-size: 12.5px;
+  font-size: 13.5px;
   max-width: 46ch;
   margin: 0 auto;
 }
@@ -1012,7 +1092,7 @@ select:focus {
 }
 
 .focus__name {
-  font-size: 21px;
+  font-size: 22.5px;
   font-weight: 660;
   margin-bottom: 3px;
 }
@@ -1028,7 +1108,7 @@ select:focus {
 }
 
 .focus__groups h4 {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 640;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1055,7 +1135,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 640;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1065,12 +1145,12 @@ select:focus {
 
 .brief__icon {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .brief__goal {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 14.5px;
   color: var(--text-soft);
   max-width: 48ch;
 }
@@ -1106,7 +1186,7 @@ select:focus {
 }
 
 .editor__field h4 {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 640;
   letter-spacing: 0.075em;
   text-transform: uppercase;
@@ -1193,7 +1273,7 @@ select:focus {
   border-radius: 6px;
   background: var(--accent-soft);
   color: var(--accent-deep);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 680;
   font-variant-numeric: tabular-nums;
 }
@@ -1205,14 +1285,14 @@ select:focus {
   border: 1px solid var(--line);
   background: var(--surface-sunk);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 640;
   font-variant-numeric: tabular-nums;
   cursor: help;
 }
 
 .ccard__label {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 620;
   color: var(--text);
   overflow: hidden;
@@ -1227,7 +1307,7 @@ select:focus {
 
 .ccard__ai {
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--accent);
   white-space: nowrap;
 }
@@ -1237,7 +1317,7 @@ select:focus {
   border: 0;
   background: none;
   padding: 0 2px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1;
   color: var(--muted);
   cursor: pointer;
@@ -1262,7 +1342,7 @@ select:focus {
 }
 
 .ccard__name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 620;
   color: var(--text);
   line-height: 1.35;
@@ -1291,7 +1371,7 @@ select:focus {
 }
 
 .ccard__deltalabel {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1299,7 +1379,7 @@ select:focus {
 }
 
 .ccard__deltavalue {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 620;
   font-variant-numeric: tabular-nums;
 }
@@ -1322,7 +1402,7 @@ select:focus {
 }
 
 .ccard__metric span {
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.045em;
   text-transform: uppercase;
@@ -1330,7 +1410,7 @@ select:focus {
 }
 
 .ccard__metric strong {
-  font-size: 14px;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1352,7 +1432,7 @@ select:focus {
 
 .ccard__status {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .ccard__ok {
@@ -1385,7 +1465,7 @@ select:focus {
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -1394,7 +1474,7 @@ select:focus {
    ========================================================================== */
 
 .delta {
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -1451,7 +1531,7 @@ select:focus {
 }
 
 .props dt {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 620;
   letter-spacing: 0.045em;
   text-transform: uppercase;
@@ -1460,14 +1540,14 @@ select:focus {
 
 .props dd {
   margin: 3px 0 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   font-variant-numeric: tabular-nums;
 }
 
 .props__err {
   color: var(--muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 500;
   margin-left: 3px;
 }
@@ -1476,7 +1556,7 @@ select:focus {
   display: flex;
   gap: 12px;
   margin: 9px 0 0;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--muted);
 }
 
@@ -1505,7 +1585,7 @@ select:focus {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .rules li {
@@ -1529,7 +1609,7 @@ select:focus {
 .rules__ok .rules__verdict {
   color: var(--ok);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .rules__bad .rules__name,
@@ -1550,7 +1630,7 @@ select:focus {
   gap: 12px;
   padding: 7px 0;
   border-top: 1px solid var(--line-soft);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .pills__row:first-child {
@@ -1565,7 +1645,7 @@ select:focus {
   list-style: none;
   margin: 12px 0 0;
   padding: 0;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .alerts__item {
@@ -1609,7 +1689,7 @@ select:focus {
 }
 
 .groups__tag {
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -1628,7 +1708,7 @@ select:focus {
 
 .cbox__score {
   margin: 0 0 6px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--bad);
 }
@@ -1641,7 +1721,7 @@ select:focus {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -1665,7 +1745,7 @@ select:focus {
   width: 100%;
   margin-top: 10px;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1673,7 +1753,7 @@ select:focus {
   text-align: left;
   color: var(--muted);
   font-weight: 600;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding-bottom: 5px;
@@ -1696,7 +1776,7 @@ select:focus {
 
 .ledger__headline {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
 }
 
@@ -1734,9 +1814,9 @@ select:focus {
 /* Takes its own column, so the board narrows and stays usable beside it. */
 .drawer--docked {
   position: sticky;
-  top: 0;
+  top: var(--topbar-h);
   align-self: flex-start;
-  height: 100vh;
+  height: calc(100vh - var(--topbar-h));
   width: var(--drawer-w);
   flex: none;
   box-shadow: -6px 0 22px rgba(20, 24, 40, 0.05);
@@ -1786,7 +1866,7 @@ select:focus {
   border-radius: 6px;
   background: none;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 620;
   color: var(--muted);
   cursor: pointer;
@@ -1820,7 +1900,7 @@ select:focus {
 }
 
 .drawer__title {
-  font-size: 18px;
+  font-size: 19.5px;
   font-weight: 660;
 }
 
@@ -1835,7 +1915,7 @@ select:focus {
   border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
-  font-size: 21px;
+  font-size: 22.5px;
   line-height: 1;
   cursor: pointer;
 }
@@ -1851,13 +1931,13 @@ select:focus {
 
 .drawer__name {
   margin: 0;
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 620;
 }
 
 .drawer__headline {
   margin: 3px 0 0;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 
@@ -1895,7 +1975,7 @@ select:focus {
 .drawer__actionrow .btn {
   flex: 1;
   padding: 7px 8px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .drawer__actionrow .btn--icon {
@@ -1911,7 +1991,7 @@ select:focus {
   border-radius: var(--radius-sm);
   background: var(--ok-soft);
   color: var(--ok);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1925,7 +2005,7 @@ select:focus {
 }
 
 .drawer__section h3 {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 640;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1946,13 +2026,13 @@ select:focus {
 
 .drawer__stat {
   margin: 0 0 8px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--muted);
 }
 
 .drawer__stat strong {
   color: var(--ok);
-  font-size: 15px;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1970,7 +2050,7 @@ select:focus {
   border-bottom: 2px solid transparent;
   background: none;
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 540;
   color: var(--muted);
   cursor: pointer;
@@ -1993,7 +2073,7 @@ select:focus {
   gap: 14px;
   padding: 7px 0;
   border-top: 1px solid var(--line-soft);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .kv:first-child {
@@ -2013,13 +2093,13 @@ select:focus {
 .cmp {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-variant-numeric: tabular-nums;
 }
 
 .cmp th {
   text-align: left;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 620;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2054,13 +2134,13 @@ select:focus {
 }
 
 .sa__score strong {
-  font-size: 30px;
+  font-size: 32.5px;
   font-weight: 680;
   font-variant-numeric: tabular-nums;
 }
 
 .sa__score span {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -2149,7 +2229,7 @@ select:focus {
 }
 
 .panel__head h2 {
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 660;
   text-transform: uppercase;
   letter-spacing: 0.085em;
@@ -2207,13 +2287,13 @@ select:focus {
 }
 
 .picker__name {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 620;
   color: var(--text);
 }
 
 .picker__sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2227,7 +2307,7 @@ select:focus {
 .ctable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2246,7 +2326,7 @@ select:focus {
 }
 
 .ctable__corner {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 620;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2255,14 +2335,14 @@ select:focus {
 
 .ctable__colname {
   display: block;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 620;
   color: var(--text);
 }
 
 .ctable__colsub {
   display: block;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 400;
   color: var(--muted);
   max-width: 140px;
@@ -2308,7 +2388,7 @@ select:focus {
 }
 
 .radar__label {
-  font-size: 9.5px;
+  font-size: 10.5px;
   fill: var(--muted);
 }
 
@@ -2319,7 +2399,7 @@ select:focus {
   gap: 12px;
   margin: 12px 0;
   padding: 0;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-soft);
 }
 
@@ -2349,7 +2429,7 @@ select:focus {
   gap: 10px;
   padding: 11px 13px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 14px;
   border-left: 2px solid;
 }
 
@@ -2397,7 +2477,7 @@ select:focus {
 
 .strip__arrow {
   color: var(--line);
-  font-size: 17px;
+  font-size: 18.5px;
   flex: none;
 }
 
@@ -2436,7 +2516,7 @@ button.mini:hover {
 }
 
 .mini__title {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.3;
@@ -2456,7 +2536,7 @@ button.mini:hover {
 }
 
 .linechart__tick {
-  font-size: 9px;
+  font-size: 9.5px;
   fill: var(--muted);
 }
 
@@ -2476,7 +2556,7 @@ button.mini:hover {
 .summaryline {
   margin: 0 0 14px;
   padding: 10px 13px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-soft);
   background: var(--surface-sunk);
   border-left: 2px solid var(--accent);
@@ -2505,7 +2585,7 @@ button.mini:hover {
 }
 
 .mini__sub {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--muted);
   line-height: 1.3;
   overflow: hidden;
@@ -2523,7 +2603,7 @@ button.mini:hover {
 
 .focuspanel__name {
   margin-top: 12px;
-  font-size: 17px;
+  font-size: 18.5px;
   font-weight: 650;
 }
 
@@ -2534,7 +2614,7 @@ button.mini:hover {
 }
 
 .focuspanel__block h4 {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 640;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2561,7 +2641,7 @@ button.mini:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 
 .tree__node {
@@ -2648,7 +2728,7 @@ button.mini:hover {
   gap: 10px;
   padding: 9px 0;
   border-top: 1px solid var(--line-soft);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .shortlist li:first-child {
@@ -2680,7 +2760,7 @@ button.mini:hover {
   flex-wrap: wrap;
   gap: 18px;
   align-items: center;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-soft);
 }
 
@@ -2718,7 +2798,7 @@ button.mini:hover {
 .steps {
   margin: 0;
   padding-left: 20px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-soft);
 }
 
@@ -2752,7 +2832,7 @@ button.mini:hover {
 }
 
 .trace__block h3 {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 640;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2768,7 +2848,7 @@ button.mini:hover {
 }
 
 .trace__tools code {
-  font-size: 10.5px;
+  font-size: 11.5px;
   padding: 3px 8px;
   border-radius: 5px;
   background: var(--surface-sunk);
@@ -2784,7 +2864,7 @@ button.mini:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .log li {
@@ -2799,14 +2879,14 @@ button.mini:hover {
 .log__actor {
   color: var(--accent-deep);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .log__detail {
   display: block;
   color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10.5px;
+  font-size: 11.5px;
   word-break: break-all;
 }
 
@@ -2851,7 +2931,7 @@ button.mini:hover {
 @media (max-width: 1180px) {
   .drawer--docked {
     position: fixed;
-    top: 0;
+    top: var(--topbar-h);
     right: 0;
     bottom: 0;
     height: auto;
@@ -2882,7 +2962,7 @@ button.mini:hover {
   }
 
   .brandmark img {
-    height: 24px;
+    max-height: 20px;
   }
 
   .shell__content {
@@ -2913,7 +2993,7 @@ button.mini:hover {
 
 .ccard__transform {
   margin: -4px 0 0;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   line-height: 1.35;
   overflow: hidden;
@@ -2936,7 +3016,7 @@ button.mini:hover {
   border-radius: var(--radius-sm);
   background: var(--surface-sunk);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .toggle input[type='checkbox'] {
@@ -2957,7 +3037,7 @@ button.mini:hover {
 .toggle em {
   font-style: normal;
   font-weight: 400;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -3040,7 +3120,7 @@ button.mini:hover {
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--line);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -3054,7 +3134,7 @@ button.mini:hover {
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 .graph .react-flow__controls {
@@ -3204,7 +3284,7 @@ button.evonode:hover {
 }
 
 .evonode__rank {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -3213,7 +3293,7 @@ button.evonode:hover {
 }
 
 .evonode__mark {
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 620;
   color: var(--muted);
   white-space: nowrap;
@@ -3231,7 +3311,7 @@ button.evonode:hover {
 /* Two lines, then an ellipsis. Never a word sliced down the middle. */
 .evonode__name {
   flex: none;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   line-height: 1.3;
   max-height: 2.6em;
@@ -3248,7 +3328,7 @@ button.evonode:hover {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text-soft);
 }
@@ -3260,7 +3340,7 @@ button.evonode:hover {
 
 .evonode__goals {
   flex: none;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--warn);
 }
@@ -3270,7 +3350,7 @@ button.evonode:hover {
 }
 
 .evonode--ghost .smiles {
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -3283,7 +3363,7 @@ button.evonode:hover {
   margin: 0 0 10px;
   padding: 0;
   list-style: none;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-soft);
 }
 
@@ -3320,7 +3400,7 @@ button.evonode:hover {
 
 .projectstrip__label {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 640;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -3329,7 +3409,7 @@ button.evonode:hover {
 }
 
 .projectstrip__id h2 {
-  font-size: 19px;
+  font-size: 20.5px;
   font-weight: 660;
   margin-bottom: 2px;
 }
@@ -3343,7 +3423,7 @@ button.evonode:hover {
 
 .projectstrip__goal p {
   margin: 0 0 8px;
-  font-size: 13.5px;
+  font-size: 14.5px;
   color: var(--text-soft);
   max-width: 60ch;
 }
@@ -3370,7 +3450,7 @@ button.evonode:hover {
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   border-left: 3px solid;
-  font-size: 13.5px;
+  font-size: 14.5px;
 }
 
 .needs__item--warn {
@@ -3394,7 +3474,7 @@ button.evonode:hover {
   border-radius: 50%;
   background: currentColor;
   color: var(--surface);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -3416,7 +3496,7 @@ button.evonode:hover {
 }
 
 .needs--clear h2 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 620;
   margin-bottom: 2px;
 }
@@ -3434,7 +3514,7 @@ button.evonode:hover {
   border-radius: 50%;
   background: var(--ok-soft);
   color: var(--ok);
-  font-size: 16px;
+  font-size: 17.5px;
   font-weight: 800;
 }
 
@@ -3448,7 +3528,7 @@ button.evonode:hover {
 }
 
 .bignum strong {
-  font-size: 34px;
+  font-size: 36.5px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -3459,14 +3539,14 @@ button.evonode:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--muted);
   max-width: 34ch;
 }
 
 .bignum em {
   font-style: normal;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--muted);
 }
@@ -3507,7 +3587,7 @@ button.evonode:hover {
   border-radius: 5px;
   background: var(--accent-soft);
   color: var(--accent-deep);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 680;
   font-variant-numeric: tabular-nums;
   text-align: center;
@@ -3532,14 +3612,14 @@ button.evonode:hover {
 }
 
 .ranklist__body strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 620;
   color: var(--text);
 }
 
 .ranklist__body .hint {
   margin: 0;
-  font-size: 11.5px;
+  font-size: 12.5px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -3551,7 +3631,7 @@ button.evonode:hover {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -3562,7 +3642,7 @@ button.evonode:hover {
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .activity li {
@@ -3580,7 +3660,7 @@ button.evonode:hover {
 .activity__who {
   flex: none;
   min-width: 42px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 660;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -3604,7 +3684,7 @@ button.evonode:hover {
 .activity__when {
   flex: none;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -3637,7 +3717,7 @@ button.evonode:hover {
   max-width: 48rem;
   padding: 40px 44px 34px;
   font-family: ui-serif, Georgia, "Times New Roman", serif;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.62;
 }
 
@@ -3648,21 +3728,21 @@ button.evonode:hover {
 }
 
 .paper__head h1 {
-  font-size: 29px;
+  font-size: 31.5px;
   line-height: 1.2;
   margin-bottom: 5px;
 }
 
 .paper__subtitle {
   margin: 0 0 8px;
-  font-size: 17px;
+  font-size: 18.5px;
   color: var(--text-soft);
 }
 
 .paper__meta,
 .paper__foot {
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 
@@ -3688,13 +3768,13 @@ button.evonode:hover {
 }
 
 .paper__titleinput {
-  font-size: 27px;
+  font-size: 29px;
   font-weight: 660;
   padding: 4px 8px;
 }
 
 .paper__subtitleinput {
-  font-size: 16px;
+  font-size: 17.5px;
   color: var(--text-soft);
   padding: 4px 8px;
 }
@@ -3705,7 +3785,7 @@ button.evonode:hover {
 
 .paper h3 {
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 660;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -3786,7 +3866,7 @@ button.evonode:hover {
   gap: 1px;
   margin-top: 7px;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 
 .rfig figcaption strong {
@@ -3816,7 +3896,7 @@ button.evonode:hover {
 .rkv {
   margin: 14px 0 0;
   font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .rkv > div {
@@ -3919,7 +3999,7 @@ button.evonode:hover {
 }
 
 .doc__lead {
-  font-size: 14.5px;
+  font-size: 15.5px;
   color: var(--text-soft);
   border-left: 2px solid var(--accent-line);
   padding-left: 14px;
@@ -3936,7 +4016,7 @@ button.evonode:hover {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   position: sticky;
-  top: 62px;
+  top: calc(var(--topbar-h) + 8px);
   z-index: 10;
 }
 
@@ -3944,7 +4024,7 @@ button.evonode:hover {
   padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 520;
   color: var(--text-soft);
   text-decoration: none;
@@ -3958,7 +4038,7 @@ button.evonode:hover {
 }
 
 .doc h3 {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 660;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -3981,7 +4061,7 @@ button.evonode:hover {
 
 .doccards h3 {
   margin: 0 0 6px;
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 640;
   letter-spacing: -0.005em;
   text-transform: none;
@@ -3990,7 +4070,7 @@ button.evonode:hover {
 
 .doccards p {
   margin: 0 0 10px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-soft);
 }
 
