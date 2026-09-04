@@ -2445,194 +2445,6 @@ button.mini:hover {
   line-height: 1.3;
 }
 
-/* --- generation tree ---
-   One column per generation, siblings grouped under the parent they were
-   actually designed from. No connector lines: the grouping states parentage
-   outright, where a drawn edge between free-floating nodes only implies it. */
-
-.gentree {
-  display: flex;
-  align-items: stretch;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-.gen {
-  flex: none;
-  padding: 0 18px;
-  border-left: 1px solid var(--line-soft);
-}
-
-.gen:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-
-.gen__head {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.gen__head strong {
-  font-size: 10.5px;
-  font-weight: 640;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--muted);
-}
-
-.gen__head span {
-  font-size: 10.5px;
-  color: var(--muted);
-}
-
-.gen__groups {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.sibgroup {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sibgroup__from {
-  font-size: 10px;
-  color: var(--muted);
-  font-style: italic;
-}
-
-.sibgroup__nodes {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.evonode {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: stretch;
-  width: 182px;
-  padding: 9px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.evonode:hover {
-  border-color: var(--accent-line);
-  box-shadow: var(--shadow);
-}
-
-.evonode .depiction {
-  width: 100%;
-}
-
-.evonode--promoted {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-}
-
-.evonode--focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.evonode--rejected {
-  opacity: 0.5;
-}
-
-.evonode--rejected:hover {
-  opacity: 1;
-}
-
-.evonode--ghost {
-  cursor: default;
-  border-style: dashed;
-  background: var(--surface-sunk);
-  gap: 7px;
-}
-
-.evonode--ghost:hover {
-  border-color: var(--line);
-  box-shadow: none;
-}
-
-.evonode__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.evonode__rank {
-  font-size: 10px;
-  font-weight: 660;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.evonode__mark {
-  font-size: 9.5px;
-  font-weight: 620;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.evonode__mark--focus,
-.evonode__mark--promoted {
-  color: var(--accent-deep);
-}
-
-.evonode__mark--rejected {
-  color: var(--bad);
-}
-
-.evonode__name {
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.3;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.evonode__stat {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-soft);
-}
-
-.evonode__stat--muted {
-  color: var(--muted);
-  font-style: italic;
-}
-
-.evonode__goals {
-  font-size: 10px;
-  color: var(--warn);
-}
-
-.evonode__goals--met {
-  color: var(--ok);
-}
-
 /* --- convergence chart --- */
 
 .linechart {
@@ -3157,78 +2969,61 @@ button.mini:hover {
   position: relative;
 }
 
-.graph__controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.graph__zoom {
-  min-width: 44px;
-  text-align: center;
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-.graph__surface {
-  overflow: auto;
-  max-height: 620px;
+/* React Flow needs a definite height; the canvas has no intrinsic size. */
+.graph .react-flow {
+  height: 620px;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-sm);
-  background:
-    radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0 / 22px 22px;
-  cursor: grab;
-  overscroll-behavior: contain;
+  background: var(--surface-sunk);
 }
 
-.graph__surface--dragging {
-  cursor: grabbing;
+.graph .react-flow__background {
+  color: var(--line);
 }
 
-.graph__canvas {
-  position: relative;
-}
-
-/* Scaled from the top-left so the wrapper's pixel size stays predictable and
-   the scrollbars match what is actually drawn. */
-.graph__scale {
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: 0 0;
-}
-
-.graph__edges {
-  position: absolute;
-  top: 0;
-  left: 0;
+/* Edges are attached, not decorative, so the handles themselves stay hidden. */
+.graph__handle {
+  opacity: 0;
   pointer-events: none;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
 }
 
-.graph__edge {
-  fill: none;
+.graph .react-flow__edge-path {
   stroke: var(--line);
-  stroke-width: 1.6;
 }
 
-/* The path actually taken reads as the spine of the tree. */
-.graph__edge--promoted {
+.graph .graph__edge--promoted .react-flow__edge-path {
   stroke: var(--accent);
-  stroke-width: 2.4;
+}
+
+.graph .react-flow__node {
+  cursor: default;
+}
+
+.graph__node {
+  width: 100%;
+  height: 100%;
+}
+
+.graph__node .evonode {
+  width: 100%;
+  height: 100%;
 }
 
 .graph__collabel {
-  position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   font-size: 10.5px;
   font-weight: 640;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--muted);
+  white-space: nowrap;
   pointer-events: none;
 }
 
@@ -3239,12 +3034,171 @@ button.mini:hover {
   font-size: 10.5px;
 }
 
-.graph__node {
-  position: absolute;
+.graph .react-flow__controls {
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
-.graph__node .evonode {
-  width: 100%;
-  height: 100%;
+.graph .react-flow__controls-button {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-soft);
+}
+
+.graph .react-flow__controls-button:hover {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+
+.graph .react-flow__minimap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.graph .react-flow__panel {
+  margin: 10px;
+}
+
+/* --- nodes inside the graph ---
+   A node box is a fixed size, so the card lays itself out to fill it and the
+   long lines clamp instead of spilling past the edge. */
+
+.evonode {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+button.evonode:hover {
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-lift);
+}
+
+.evonode--static,
+.evonode--ghost {
+  cursor: default;
+}
+
+.evonode--ghost {
+  border-style: dashed;
+  background: var(--surface-sunk);
+  justify-content: center;
+  gap: 8px;
+}
+
+.evonode .depiction {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.evonode .depiction svg {
+  max-height: 100%;
+}
+
+.evonode--promoted {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.evonode--focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.evonode--rejected {
+  opacity: 0.55;
+}
+
+.evonode--rejected:hover {
+  opacity: 1;
+}
+
+.evonode__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: none;
+}
+
+.evonode__rank {
+  font-size: 10px;
+  font-weight: 660;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.evonode__mark {
+  font-size: 9.5px;
+  font-weight: 620;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.evonode__mark--focus,
+.evonode__mark--promoted {
+  color: var(--accent-deep);
+}
+
+.evonode__mark--rejected {
+  color: var(--bad);
+}
+
+/* Two lines, then an ellipsis. Never a word sliced down the middle. */
+.evonode__name {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  max-height: 2.6em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+
+.evonode__stat {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+}
+
+.evonode__stat--muted {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.evonode__goals {
+  flex: none;
+  font-size: 10px;
+  color: var(--warn);
+}
+
+.evonode__goals--met {
+  color: var(--ok);
+}
+
+.evonode--ghost .smiles {
+  font-size: 10px;
+  text-align: center;
 }

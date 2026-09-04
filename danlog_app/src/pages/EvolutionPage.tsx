@@ -1,5 +1,5 @@
-import { useMemo } from 'react'
-import { FOCUS_INSPECT_ID, useWorkbench } from '../store/workbench'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import { FOCUS_INSPECT_ID, buildMolecule, useWorkbench } from '../store/workbench'
 import type { Candidate, Molecule } from '../store/workbench'
 import type { Properties } from '../chem/properties'
 import { measureFor } from '../chem/measures'
@@ -9,7 +9,15 @@ import { EmptyState, Metric, SectionHead, StatusBadge } from '../ui/primitives'
 import { DeltaValue, Depiction } from '../ui/molecule'
 import { LineChart, SERIES_COLORS, Sparkline, type LineSeries } from '../ui/charts'
 import { shortName } from '../ui/CandidateCard'
-import { GenerationGraph, buildGraph } from '../ui/GenerationGraph'
+import { buildGraph } from '../ui/graph-tree'
+
+/**
+ * React Flow and its stylesheet are ~58 KB gzipped and are used on this page
+ * alone, so they load when the page does rather than on first paint.
+ */
+const GenerationGraph = lazy(() =>
+  import('../ui/GenerationGraph').then((m) => ({ default: m.GenerationGraph })),
+)
 import { usePresetName } from '../ui/usePresetName'
 
 /**
@@ -168,6 +176,7 @@ function GenerationTree({
   promotedIds,
   focus,
   focusId,
+  origin,
   originSmiles,
   originIsFocus,
 }: {
@@ -176,6 +185,8 @@ function GenerationTree({
   promotedIds: Set<string>
   focus: Molecule | null
   focusId: string | null
+  /** Fully worked out, whether or not it is still the focus. Null while it builds. */
+  origin: Molecule | null
   originSmiles: string | null
   originIsFocus: boolean
 }) {
@@ -185,35 +196,66 @@ function GenerationTree({
   const root = useMemo(() => buildGraph(candidates), [candidates])
 
   return (
+    <Suspense
+      fallback={
+        <div className="splash splash--inline">
+          <div className="spinner" />
+          <p>Laying out the design tree…</p>
+        </div>
+      }
+    >
     <GenerationGraph
       root={root}
       promotedIds={promotedIds}
       renderNode={(node) => {
         if (!node.candidate) {
-          return originIsFocus && focus ? (
+          // The origin is rebuilt from its SMILES when it is no longer the
+          // focus, so it shows a structure and real numbers like every other
+          // node rather than an apology for missing data.
+          if (!origin) {
+            return (
+              <div className="evonode evonode--origin evonode--ghost">
+                <span className="evonode__top">
+                  <span className="evonode__rank">Start</span>
+                </span>
+                <code className="smiles">{originSmiles ?? 'starting molecule'}</code>
+                <span className="evonode__stat evonode__stat--muted">Working it out…</span>
+              </div>
+            )
+          }
+
+          const body = (
+            <>
+              <span className="evonode__top">
+                <span className="evonode__rank">Start</span>
+                {originIsFocus && <span className="evonode__mark evonode__mark--focus">● focus</span>}
+              </span>
+              <Depiction svg={origin.svg} size="xs" />
+              <span className="evonode__name">Starting molecule</span>
+              <span className="evonode__stat">logS {origin.properties.logS}</span>
+              {origin.constraints.total > 0 && (
+                <span
+                  className={
+                    'evonode__goals' + (origin.constraints.allMet ? ' evonode__goals--met' : '')
+                  }
+                >
+                  {origin.constraints.satisfied}/{origin.constraints.total} goals
+                </span>
+              )}
+            </>
+          )
+
+          // Only the focus molecule has somewhere to open; a superseded origin
+          // is shown but not clickable, rather than clicking into nothing.
+          return originIsFocus ? (
             <button
               className="evonode evonode--origin evonode--focus"
               onClick={() => inspect(FOCUS_INSPECT_ID)}
             >
-              <span className="evonode__top">
-                <span className="evonode__rank">Start</span>
-                <span className="evonode__mark evonode__mark--focus">● focus</span>
-              </span>
-              <Depiction svg={focus.svg} size="xs" />
-              <span className="evonode__name">Starting molecule</span>
-              <span className="evonode__stat">logS {focus.properties.logS}</span>
+              {body}
             </button>
           ) : (
-            // Once something has been promoted the original molecule is no
-            // longer in focus, and the board keeps only its SMILES -- so we
-            // show that rather than re-deriving a structure we never stored.
-            <div className="evonode evonode--origin evonode--ghost">
-              <span className="evonode__top">
-                <span className="evonode__rank">Start</span>
-              </span>
-              <code className="smiles">{originSmiles ?? 'starting molecule'}</code>
-              <span className="evonode__stat evonode__stat--muted">Properties not retained</span>
-            </div>
+            <div className="evonode evonode--origin evonode--static">{body}</div>
           )
         }
 
@@ -230,6 +272,7 @@ function GenerationTree({
         )
       }}
     />
+    </Suspense>
   )
 }
 
@@ -245,18 +288,16 @@ type TrendNode = {
 function ConvergenceChart({
   generations,
   promotedIds,
-  focus,
-  originIsFocus,
+  origin,
 }: {
   generations: Generation[]
   promotedIds: Set<string>
-  focus: Molecule | null
   /**
-   * Whether the molecule in focus is still the one the board started from.
-   * Once something has been promoted it is not, and plotting the current
-   * molecule at the "Start" position would place today's result at the origin.
+   * The molecule the board started from, rebuilt from its SMILES when it is no
+   * longer the focus. Plotting the *current* focus at the "Start" position
+   * would put today's result at the origin, so this is deliberately not that.
    */
-  originIsFocus: boolean
+  origin: Molecule | null
 }) {
   const constraints = useWorkbench((s) => s.constraints)
   const usingGoals = constraints.length > 0
@@ -279,10 +320,7 @@ function ConvergenceChart({
   }
 
   const labels = ['Start', ...generations.map((g) => `Gen ${g.depth}`)]
-  // Null rather than the current molecule's value: the origin's properties are
-  // not retained once it stops being the focus, and a gap is honest where a
-  // borrowed number is not.
-  const startValue = originIsFocus && focus ? ratio(focus) : null
+  const startValue = origin ? ratio(origin) : null
 
   const best: (number | null)[] = [
     startValue,
@@ -540,6 +578,7 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
   const focusId = useWorkbench((s) => s.focusId)
   const candidates = useWorkbench((s) => s.candidates)
   const scaffold = useWorkbench((s) => s.scaffold)
+  const constraints = useWorkbench((s) => s.constraints)
   const setPage = useWorkbench((s) => s.setPage)
   const focusName = usePresetName(focus?.properties.canonicalSmiles ?? null)
 
@@ -591,6 +630,40 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
   const originSmiles = rootParentSmiles ?? focus?.properties.canonicalSmiles ?? null
 
   /**
+   * The starting molecule, worked out in full.
+   *
+   * The board keeps only its SMILES once it stops being the focus, which is
+   * why it used to render as "properties not retained". Everything else about
+   * it is reproducible -- RDKit is deterministic -- so it is rebuilt rather
+   * than apologised for. Held with its SMILES so a slow rebuild cannot be
+   * attributed to a different starting molecule.
+   */
+  const [built, setBuilt] = useState<{ smiles: string; molecule: Molecule } | null>(null)
+
+  useEffect(() => {
+    if (!originSmiles || originIsFocus) return
+    let cancelled = false
+    buildMolecule(originSmiles, scaffold, constraints)
+      .then((molecule) => {
+        if (!cancelled) setBuilt({ smiles: originSmiles, molecule })
+      })
+      .catch(() => {
+        // A SMILES that no longer parses leaves the placeholder in place.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [originSmiles, originIsFocus, scaffold, constraints])
+
+  const origin: Molecule | null = originIsFocus
+    ? focus
+    : built?.smiles === originSmiles
+      ? built.molecule
+      : null
+
+  const originName = usePresetName(originSmiles)
+
+  /**
    * The columns of the property table.
    *
    * When promotions exist this is the path actually taken. When they do not,
@@ -602,12 +675,25 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
     if (!focus) return []
 
     if (hasPromotions) {
-      return promotedChain.map((c, i) => ({
+      const steps = promotedChain.map((c, i) => ({
         id: c.id,
         label: i === promotedChain.length - 1 ? 'Current' : `Step ${i + 1}`,
         name: rankMap.get(c.id) ? `Candidate ${rankLabel(rankMap.get(c.id)!.rank)}` : shortName(c),
         properties: c.properties,
       }))
+      // With the origin rebuilt, the path can be measured from where it
+      // actually began rather than from its first promotion.
+      return origin
+        ? [
+            {
+              id: 'origin',
+              label: 'Start',
+              name: originName ?? 'Starting molecule',
+              properties: origin.properties,
+            },
+            ...steps,
+          ]
+        : steps
     }
 
     const bestPerGen = generations
@@ -636,7 +722,7 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
         properties: c.properties,
       })),
     ]
-  }, [focus, focusName, hasPromotions, promotedChain, generations, rankMap])
+  }, [focus, focusName, originName, origin, hasPromotions, promotedChain, generations, rankMap])
 
   const focusCandidate = focusId ? (candidates.find((c) => c.id === focusId) ?? null) : null
 
@@ -694,6 +780,7 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
             promotedIds={promotedIds}
             focus={focus}
             focusId={focusId}
+            origin={origin}
             originSmiles={originSmiles}
             originIsFocus={originIsFocus}
           />
@@ -706,8 +793,7 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
             <ConvergenceChart
               generations={generations}
               promotedIds={promotedIds}
-              focus={focus}
-              originIsFocus={originIsFocus}
+              origin={origin}
             />
 
             <section className="surface">
