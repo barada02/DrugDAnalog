@@ -116,6 +116,12 @@ type WorkbenchState = {
   candidateNotes: Record<string, string>
   /** Whether the developer/agent trace panel is open. */
   traceOpen: boolean
+  /**
+   * Whether to ask a public service for systematic names. Off means no
+   * structure is sent anywhere for naming. Session-only, like the rest of this
+   * block, so it never silently persists a choice about the network.
+   */
+  iupacLookup: boolean
 }
 
 type WorkbenchActions = {
@@ -154,6 +160,7 @@ type WorkbenchActions = {
   toggleShortlist: (id: string) => void
   setCandidateNote: (id: string, text: string) => void
   setTraceOpen: (open: boolean) => void
+  setIupacLookup: (on: boolean) => void
 }
 
 /** The compare table stops being readable past five columns plus the focus. */
@@ -233,6 +240,7 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
   shortlist: [],
   candidateNotes: {},
   traceOpen: false,
+  iupacLookup: true,
 
   setRdkitStatus: (rdkitStatus, rdkitError = undefined) =>
     set({ rdkitStatus, rdkitError: rdkitError ?? null }),
@@ -459,6 +467,8 @@ export const useWorkbench = create<WorkbenchState & WorkbenchActions>((set, get)
     set((state) => ({ candidateNotes: { ...state.candidateNotes, [id]: text } })),
 
   setTraceOpen: (traceOpen) => set({ traceOpen }),
+
+  setIupacLookup: (iupacLookup) => set({ iupacLookup }),
 }))
 
 /**

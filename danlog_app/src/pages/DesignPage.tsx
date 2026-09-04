@@ -21,6 +21,7 @@ import {
 import { CandidateCard, MiniMolecule, shortName } from '../ui/CandidateCard'
 import { usePresetName } from '../ui/usePresetName'
 import { useGroupPresence } from '../ui/useGroupPresence'
+import { useIupacName } from '../ui/useIupacName'
 
 /**
  * The Design page: the whole point of the application.
@@ -264,6 +265,7 @@ function FocusSection() {
   const scaffold = useWorkbench((s) => s.scaffold)
   const inspect = useWorkbench((s) => s.inspect)
   const name = usePresetName(focus?.properties.canonicalSmiles ?? null)
+  const iupac = useIupacName(focus?.properties.canonicalSmiles ?? null)
   const [picking, setPicking] = useState(false)
   const [editing, setEditing] = useState(false)
   const [showAll, setShowAll] = useState(false)
@@ -315,7 +317,7 @@ function FocusSection() {
         </div>
 
         <div className="focus__detail">
-          <h3 className="focus__name">{name ?? 'Custom molecule'}</h3>
+          <h3 className="focus__name">{name ?? iupac ?? 'Custom molecule'}</h3>
           <code className="smiles">{p.canonicalSmiles}</code>
 
           <div className="metrics metrics__inline">

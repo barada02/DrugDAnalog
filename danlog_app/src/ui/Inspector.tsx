@@ -3,6 +3,7 @@ import type { Shape } from '../chem/shape'
 import { FOCUS_INSPECT_ID, useWorkbench, type InspectTab } from '../store/workbench'
 import type { Candidate, Molecule } from '../store/workbench'
 import { usePresetName } from './usePresetName'
+import { useIupacName } from './useIupacName'
 import type { Properties } from '../chem/properties'
 import { deltaFor, displayStatus } from '../chem/ranking'
 import type { Ranked } from '../chem/ranking'
@@ -503,6 +504,7 @@ export function Inspector({ ranked }: { ranked: Ranked[] }) {
   const smiles = subject?.properties.canonicalSmiles ?? ''
   const noteKey = candidate?.id ?? FOCUS_INSPECT_ID
   const presetName = usePresetName(smiles || null)
+  const iupac = useIupacName(smiles || null)
 
   /**
    * Shape is lifted out of the viewer so the Synthesis tab can show the
@@ -604,12 +606,12 @@ export function Inspector({ ranked }: { ranked: Ranked[] }) {
       subtitle={
         candidate && entry ? (
           <>
-            <p className="drawer__name">{candidate.rationale || 'Proposed analog'}</p>
+            <p className="drawer__name">{iupac ?? candidate.rationale ?? 'Proposed analog'}</p>
             <p className="drawer__headline">{entry.headline}</p>
           </>
         ) : (
           <>
-            <p className="drawer__name">{presetName ?? 'Custom molecule'}</p>
+            <p className="drawer__name">{presetName ?? iupac ?? 'Custom molecule'}</p>
             <p className="drawer__headline">
               The molecule every candidate on this board is measured against.
             </p>

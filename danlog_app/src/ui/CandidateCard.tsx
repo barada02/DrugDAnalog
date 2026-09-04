@@ -7,6 +7,7 @@ import type { Ranked } from '../chem/ranking'
 import { getSASeverity } from '../chem/sascore'
 import { DeltaValue, Depiction } from './molecule'
 import { StatusBadge } from './primitives'
+import { useIupacName } from './useIupacName'
 
 /**
  * One candidate, reduced to the question that matters: is this worth opening?
@@ -47,6 +48,7 @@ export function CandidateCard({
   const toggleShortlist = useWorkbench((s) => s.toggleShortlist)
   const compareIds = useWorkbench((s) => s.compareIds)
   const toggleCompare = useWorkbench((s) => s.toggleCompare)
+  const iupac = useIupacName(candidate.properties.canonicalSmiles)
 
   const deltas = useMemo(
     () =>
@@ -109,9 +111,15 @@ export function CandidateCard({
         <Depiction svg={candidate.svg} size="sm" faded={rejected} />
       </button>
 
-      <h3 className="ccard__name" title={candidate.rationale || undefined}>
-        {shortName(candidate)}
+      {/* The systematic name identifies the molecule; the agent's phrase says
+          what it did. Both are useful, so the second becomes a subtitle rather
+          than being displaced. */}
+      <h3 className="ccard__name" title={iupac ?? candidate.rationale ?? undefined}>
+        {iupac ?? shortName(candidate)}
       </h3>
+      {iupac && candidate.rationale && (
+        <p className="ccard__transform">{shortName(candidate)}</p>
+      )}
 
       {entry.highlights.length > 0 && (
         <div className="ccard__chips">

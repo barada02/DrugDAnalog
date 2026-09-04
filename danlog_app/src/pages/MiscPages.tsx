@@ -11,6 +11,8 @@ export function SettingsPage({ tools }: { tools: string[] }) {
   const candidates = useWorkbench((s) => s.candidates)
   const reset = useWorkbench((s) => s.reset)
   const setTraceOpen = useWorkbench((s) => s.setTraceOpen)
+  const iupacLookup = useWorkbench((s) => s.iupacLookup)
+  const setIupacLookup = useWorkbench((s) => s.setIupacLookup)
 
   return (
     <div className="page">
@@ -45,9 +47,34 @@ export function SettingsPage({ tools }: { tools: string[] }) {
         <SectionHead title="Privacy" />
         <p className="hint">
           Every calculation on this page runs locally in your browser through RDKit compiled to
-          WebAssembly. The one exception is 3D coordinates, which are fetched per molecule from a
-          public NIH service (CACTUS, falling back to PubChem) when you open the Synthesis tab.
-          Nothing else is sent anywhere, and the session is stored only in this browser's
+          WebAssembly. Two things are exceptions, and both send the structure to a public NIH
+          service (CACTUS, falling back to PubChem for coordinates):
+        </p>
+        <Row label="3D coordinates">
+          Fetched per molecule when a structure is shown in 3D. RDKit's browser build cannot
+          generate conformers, so there is no local alternative.
+        </Row>
+        <Row label="Systematic names">
+          Fetched per molecule to name cards and headings. Naming is a rule engine that does not
+          ship to WebAssembly. Optional — turn it off below and no structure is sent for naming.
+        </Row>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={iupacLookup}
+            onChange={(e) => setIupacLookup(e.target.checked)}
+          />
+          <span>
+            Look up systematic names
+            <em>
+              {iupacLookup
+                ? 'On — each new molecule is sent once per session.'
+                : 'Off — cards fall back to the agent’s own description.'}
+            </em>
+          </span>
+        </label>
+        <p className="hint">
+          Nothing else leaves the browser, and the session is stored only in this browser's
           localStorage.
         </p>
       </section>
