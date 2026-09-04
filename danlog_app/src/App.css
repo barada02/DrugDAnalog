@@ -3148,3 +3148,103 @@ button.mini:hover {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ==========================================================================
+   Generation graph
+   ========================================================================== */
+
+.graph {
+  position: relative;
+}
+
+.graph__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.graph__zoom {
+  min-width: 44px;
+  text-align: center;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.graph__surface {
+  overflow: auto;
+  max-height: 620px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background:
+    radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0 / 22px 22px;
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+
+.graph__surface--dragging {
+  cursor: grabbing;
+}
+
+.graph__canvas {
+  position: relative;
+}
+
+/* Scaled from the top-left so the wrapper's pixel size stays predictable and
+   the scrollbars match what is actually drawn. */
+.graph__scale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.graph__edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.graph__edge {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.6;
+}
+
+/* The path actually taken reads as the spine of the tree. */
+.graph__edge--promoted {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+}
+
+.graph__collabel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 10.5px;
+  font-weight: 640;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.graph__collabel span {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 10.5px;
+}
+
+.graph__node {
+  position: absolute;
+}
+
+.graph__node .evonode {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}

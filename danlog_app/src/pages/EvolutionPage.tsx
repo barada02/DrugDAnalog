@@ -9,6 +9,7 @@ import { EmptyState, Metric, SectionHead, StatusBadge } from '../ui/primitives'
 import { DeltaValue, Depiction } from '../ui/molecule'
 import { LineChart, SERIES_COLORS, Sparkline, type LineSeries } from '../ui/charts'
 import { shortName } from '../ui/CandidateCard'
+import { GenerationGraph, buildGraph } from '../ui/GenerationGraph'
 import { usePresetName } from '../ui/usePresetName'
 
 /**
@@ -17,8 +18,9 @@ import { usePresetName } from '../ui/usePresetName'
  * The previous version drew focus -> C01 -> C02 -> C03 with arrows between
  * them whenever nothing had been promoted. Those candidates are siblings off
  * one parent, not a chain, so the arrows asserted a history that never
- * happened. Design is a tree, so this draws a tree: one column per
- * generation, siblings grouped under the parent they actually came from.
+ * happened. Design is a tree, so this draws a tree: a real node-link graph,
+ * laid out by d3-hierarchy, with an edge from every molecule to the ones
+ * actually designed from it.
  */
 
 const TREND_ROWS: (keyof Properties)[] = [
@@ -161,7 +163,7 @@ function EvoNode({
 }
 
 function GenerationTree({
-  generations,
+  candidates,
   rankOf,
   promotedIds,
   focus,
@@ -169,7 +171,7 @@ function GenerationTree({
   originSmiles,
   originIsFocus,
 }: {
-  generations: Generation[]
+  candidates: Candidate[]
   rankOf: (c: Candidate) => string
   promotedIds: Set<string>
   focus: Molecule | null
@@ -180,81 +182,54 @@ function GenerationTree({
   const inspect = useWorkbench((s) => s.inspect)
   const shortlist = useWorkbench((s) => s.shortlist)
 
-  return (
-    <div className="gentree">
-      <section className="gen">
-        <header className="gen__head">
-          <strong>Origin</strong>
-        </header>
-        <div className="gen__groups">
-          <div className="sibgroup">
-            <div className="sibgroup__nodes">
-              {originIsFocus && focus ? (
-                <button
-                  className="evonode evonode--origin evonode--focus"
-                  onClick={() => inspect(FOCUS_INSPECT_ID)}
-                >
-                  <span className="evonode__top">
-                    <span className="evonode__rank">Start</span>
-                    <span className="evonode__mark evonode__mark--focus">● focus</span>
-                  </span>
-                  <Depiction svg={focus.svg} size="xs" />
-                  <span className="evonode__name">Starting molecule</span>
-                  <span className="evonode__stat">logS {focus.properties.logS}</span>
-                </button>
-              ) : (
-                // Once something has been promoted the original molecule is no
-                // longer in focus, and the board keeps only its SMILES -- so we
-                // show that rather than re-deriving a structure we never stored.
-                <div className="evonode evonode--origin evonode--ghost">
-                  <span className="evonode__top">
-                    <span className="evonode__rank">Start</span>
-                  </span>
-                  <code className="smiles">{originSmiles ?? 'starting molecule'}</code>
-                  <span className="evonode__stat evonode__stat--muted">
-                    Properties not retained
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+  const root = useMemo(() => buildGraph(candidates), [candidates])
 
-      {generations.map((gen) => {
-        const count = gen.groups.reduce((n, g) => n + g.members.length, 0)
-        return (
-          <section className="gen" key={gen.depth}>
-            <header className="gen__head">
-              <strong>Generation {gen.depth}</strong>
-              <span>
-                {count} candidate{count === 1 ? '' : 's'}
+  return (
+    <GenerationGraph
+      root={root}
+      promotedIds={promotedIds}
+      renderNode={(node) => {
+        if (!node.candidate) {
+          return originIsFocus && focus ? (
+            <button
+              className="evonode evonode--origin evonode--focus"
+              onClick={() => inspect(FOCUS_INSPECT_ID)}
+            >
+              <span className="evonode__top">
+                <span className="evonode__rank">Start</span>
+                <span className="evonode__mark evonode__mark--focus">● focus</span>
               </span>
-            </header>
-            <div className="gen__groups">
-              {gen.groups.map((group) => (
-                <div className="sibgroup" key={group.parentId ?? 'root'}>
-                  <span className="sibgroup__from">from {group.parentLabel}</span>
-                  <div className="sibgroup__nodes">
-                    {group.members.map((c) => (
-                      <EvoNode
-                        key={c.id}
-                        candidate={c}
-                        label={rankOf(c)}
-                        promoted={promotedIds.has(c.id)}
-                        isFocus={focusId === c.id}
-                        starred={shortlist.includes(c.id)}
-                        focus={focus}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <Depiction svg={focus.svg} size="xs" />
+              <span className="evonode__name">Starting molecule</span>
+              <span className="evonode__stat">logS {focus.properties.logS}</span>
+            </button>
+          ) : (
+            // Once something has been promoted the original molecule is no
+            // longer in focus, and the board keeps only its SMILES -- so we
+            // show that rather than re-deriving a structure we never stored.
+            <div className="evonode evonode--origin evonode--ghost">
+              <span className="evonode__top">
+                <span className="evonode__rank">Start</span>
+              </span>
+              <code className="smiles">{originSmiles ?? 'starting molecule'}</code>
+              <span className="evonode__stat evonode__stat--muted">Properties not retained</span>
             </div>
-          </section>
+          )
+        }
+
+        const c = node.candidate
+        return (
+          <EvoNode
+            candidate={c}
+            label={rankOf(c)}
+            promoted={promotedIds.has(c.id)}
+            isFocus={focusId === c.id}
+            starred={shortlist.includes(c.id)}
+            focus={focus}
+          />
         )
-      })}
-    </div>
+      }}
+    />
   )
 }
 
@@ -714,7 +689,7 @@ export function EvolutionPage({ ranked }: { ranked: Ranked[] }) {
           </EmptyState>
         ) : (
           <GenerationTree
-            generations={generations}
+            candidates={candidates}
             rankOf={rankOf}
             promotedIds={promotedIds}
             focus={focus}
